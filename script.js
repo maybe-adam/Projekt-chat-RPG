@@ -42,7 +42,6 @@ var Postava = /** @class */ (function () {
             this.hp = this.maxHp;
         if (this.hp < 0)
             this.hp = 0;
-        console.log("".concat(this.jmeno, " m\u00E1 nyn\u00ED ").concat(this.hp, "/").concat(this.maxHp, " HP."));
     };
     // Getter pro získání jména (čtení je povolené, zápis ne)
     Postava.prototype.getJmeno = function () {
@@ -55,6 +54,13 @@ var Postava = /** @class */ (function () {
     // Getter pro získání maximálních životů (čtení je povolené, zápis ne)
     Postava.prototype.getMaxHp = function () {
         return this.maxHp;
+    };
+    // Testovací metoda pro zranění
+    Postava.prototype.zranit = function (dmg) {
+        this.hp -= dmg;
+        if (this.hp < 0)
+            this.hp = 0;
+        console.log("".concat(this.jmeno, " utrp\u011Bl ").concat(dmg, " po\u0161kozen\u00ED. (HP: ").concat(this.hp, "/").concat(this.maxHp, ")"));
     };
     return Postava;
 }());
@@ -72,11 +78,15 @@ var Mag = /** @class */ (function (_super) {
             this.mana = 100;
         if (this.mana < 0)
             this.mana = 0;
-        console.log("".concat(this.jmeno, " m\u00E1 nyn\u00ED ").concat(this.mana, "/100 Many."));
     };
     // Getter pro získání many (čtení je povolené, zápis ne)
     Mag.prototype.getMana = function () {
         return this.mana;
+    };
+    // Testovací metoda pro manu
+    Mag.prototype.ztratitManu = function (hodnota) {
+        this.zmenManu(-hodnota);
+        console.log("".concat(this.jmeno, " ztratil ").concat(hodnota, " many. (Mana: ").concat(this.mana, "/100)"));
     };
     return Mag;
 }(Postava));
@@ -92,7 +102,6 @@ var Bojovnik = /** @class */ (function (_super) {
         if (hodnota < 0 || hodnota > 100)
             throw new Error("Redukce poškození musí být mezi 0 a 100.");
         this.redukcePoskozeni = hodnota;
-        console.log("".concat(this.jmeno, " m\u00E1 nyn\u00ED redukci po\u0161kozen\u00ED ").concat(this.redukcePoskozeni, "%."));
     };
     // Getter pro získání redukce (čtení je povolené, zápis ne)
     Bojovnik.prototype.getRedukcePoskozeni = function () {
@@ -114,7 +123,6 @@ var Zlodej = /** @class */ (function (_super) {
             this.focus = 100;
         if (this.focus < 0)
             this.focus = 0;
-        console.log("".concat(this.jmeno, " m\u00E1 nyn\u00ED ").concat(this.focus, "/100 Focus."));
     };
     // Getter pro získání focusu (čtení je povolené, zápis ne)
     Zlodej.prototype.getFocus = function () {
@@ -125,15 +133,26 @@ var Zlodej = /** @class */ (function (_super) {
 // ==========================================
 // VĚTEV PŘEDMĚTŮ (Polymorfismus)
 // ==========================================
-// Abstraktní třída s abstraktní metodou
-var Lektvar = /** @class */ (function () {
-    function Lektvar(nazev) {
+// Nejvyšší třída pro všechny věci v inventáři
+var Predmet = /** @class */ (function () {
+    function Predmet(nazev) {
         if (nazev.trim() === "")
-            throw new Error("Lektvar musí mít název.");
+            throw new Error("Předmět musí mít název.");
         this.nazev = nazev;
     }
-    return Lektvar;
+    Predmet.prototype.getNazev = function () {
+        return this.nazev;
+    };
+    return Predmet;
 }());
+// Lektvar dědí z Předmětu
+var Lektvar = /** @class */ (function (_super) {
+    __extends(Lektvar, _super);
+    function Lektvar(nazev) {
+        return _super.call(this, nazev) || this;
+    }
+    return Lektvar;
+}(Predmet));
 // Konkrétní implementace lektvaru
 var LektvarZdravi = /** @class */ (function (_super) {
     __extends(LektvarZdravi, _super);
@@ -171,3 +190,71 @@ var LektvarMany = /** @class */ (function (_super) {
     };
     return LektvarMany;
 }(Lektvar));
+// ==========================================
+// HLAVNÍ LOGIKA A TESTOVÁNÍ (Oživení objektů)
+// ==========================================
+// 1. Simulace vstupu od hráče (výběr v UI)
+var zvoleneJmeno = "Aerin";
+var zvolenaRasaNazev = "Elf";
+var zvolenePovolani = "Mag";
+// 2. Nalezení rasy v datovém číselníku
+var vybranaRasa = suroveRasy.find(function (rasa) { return rasa.nazev === zvolenaRasaNazev; });
+// Bezpečnostní pojistka, kdybychom udělali překlep v názvu
+if (!vybranaRasa) {
+    throw new Error("Vybraná rasa neexistuje v databázi!");
+}
+// 3. Výpočet finálních statů (pevný základ + modifikátor rasy)
+// Základní HP je 50, zbytek statů 5, přičteme úpravy z vybrané rasy
+var startHp = 50 + vybranaRasa.modHp;
+var startSila = 5 + vybranaRasa.modSila;
+var startObratnost = 5 + vybranaRasa.modObratnost;
+var startInteligence = 5 + vybranaRasa.modInteligence;
+// 4. Vytvoření proměnné pro hrdinu (typ Postava)
+var hrdina;
+// Podle vybraného povolání vytvoříme správnou instanci pomocí if / else if
+if (zvolenePovolani === "Mag") {
+    hrdina = new Mag(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
+}
+else if (zvolenePovolani === "Bojovnik") {
+    hrdina = new Bojovnik(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
+}
+else if (zvolenePovolani === "Zlodej") {
+    hrdina = new Zlodej(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
+}
+else {
+    throw new Error("Neznámé povolání!");
+}
+console.log("--- HRDINA ZROZEN ---");
+console.log("Jm\u00E9no: ".concat(hrdina.getJmeno(), ", Rasa: ").concat(zvolenaRasaNazev, ", Povol\u00E1n\u00ED: ").concat(zvolenePovolani, ", HP: ").concat(hrdina.getHp(), "/").concat(hrdina.getMaxHp()));
+// 5. Oživení lektvarů z číselníku do inventáře
+// Vytvoříme prázdné pole, které přijímá jakékoliv lektvary
+var inventar = [];
+// Projdeme surová data a vytvoříme z nich objekty
+for (var _i = 0, suroveLektvary_1 = suroveLektvary; _i < suroveLektvary_1.length; _i++) {
+    var data = suroveLektvary_1[_i];
+    if (data.typ === "zdravi") {
+        inventar.push(new LektvarZdravi(data.nazev, data.hodnota));
+    }
+    else if (data.typ === "mana") {
+        inventar.push(new LektvarMany(data.nazev, data.hodnota));
+    }
+}
+console.log("--- TESTOV\u00C1N\u00CD POLYMORFISMU ---");
+// 6. Testovací smyčka
+for (var _a = 0, inventar_1 = inventar; _a < inventar_1.length; _a++) {
+    var predmet = inventar_1[_a];
+    // Kód musí ověřit, zda je předmět Lektvar, než zavolá pouzit()
+    if (predmet instanceof LektvarZdravi) {
+        hrdina.zranit(20); // Simulace zranění
+        predmet.pouzit(hrdina);
+    }
+    else if (predmet instanceof LektvarMany) {
+        if (hrdina instanceof Mag) {
+            hrdina.ztratitManu(60); // Simulace ztráty many
+        }
+        predmet.pouzit(hrdina);
+    }
+    else {
+        console.log("".concat(predmet.getNazev(), " je p\u0159edm\u011Bt, kter\u00FD nelze jen tak pou\u017E\u00EDt."));
+    }
+}
