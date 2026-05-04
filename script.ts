@@ -53,6 +53,8 @@ abstract class Postava {
         return this.maxHp;
     }
 
+    public abstract vypisStatus(): void;
+
     // Testovací metoda pro zranění
     public zranit(dmg: number): void{
         this.hp -= dmg;
@@ -81,6 +83,10 @@ class Mag extends Postava {
         return this.mana;
     }
 
+    public vypisStatus(): void { 
+    console.log(`Mág ${this.jmeno} | HP: ${this.hp}/${this.maxHp} | Mana: ${this.mana}/100`); 
+    }
+
     // Testovací metoda pro manu
     public ztratitManu(hodnota: number): void {
         this.zmenManu(-hodnota);
@@ -106,6 +112,11 @@ class Bojovnik extends Postava {
     public getRedukcePoskozeni(): number {
         return this.redukcePoskozeni;
     }
+
+    public vypisStatus(): void { 
+    console.log(`Bojovník ${this.jmeno} | HP: ${this.hp}/${this.maxHp} | Redukce poškození: ${this.redukcePoskozeni}%`); 
+    }
+
 }
 
 // Konkrétní potomek: Zloděj
@@ -126,6 +137,10 @@ class Zlodej extends Postava {
     // Getter pro získání focusu (čtení je povolené, zápis ne)
     public getFocus(): number {
         return this.focus;
+    }
+
+    public vypisStatus(): void { 
+    console.log(`Zloděj ${this.jmeno} | HP: ${this.hp}/${this.maxHp} | Focus: ${this.focus}/100`); 
     }
 }
 
@@ -234,6 +249,7 @@ if (zvolenePovolani === "Mag") {
 
 console.log(`--- HRDINA ZROZEN ---`);
 console.log(`Jméno: ${hrdina.getJmeno()}, Rasa: ${zvolenaRasaNazev}, Povolání: ${zvolenePovolani}, HP: ${hrdina.getHp()}/${hrdina.getMaxHp()}`);
+hrdina.vypisStatus();
 
 // 5. Oživení lektvarů z číselníku do inventáře
 // Vytvoříme prázdné pole, které přijímá jakékoliv lektvary
@@ -251,17 +267,13 @@ for (const data of suroveLektvary) {
 console.log(`--- TESTOVÁNÍ POLYMORFISMU ---`);
 
 // 6. Testovací smyčka
+hrdina.zranit(20);
+if (hrdina instanceof Mag) hrdina.ztratitManu(60);
+
 for (const predmet of inventar) {
-    // Kód musí ověřit, zda je předmět Lektvar, než zavolá pouzit()
-    if (predmet instanceof LektvarZdravi) {
-        hrdina.zranit(20); // Simulace zranění
-        predmet.pouzit(hrdina);
-    } else if (predmet instanceof LektvarMany) {
-        if (hrdina instanceof Mag) {
-            hrdina.ztratitManu(60); // Simulace ztráty many
-        }
+    if (predmet instanceof Lektvar) { // Ověříme, že to je použitelné (Lektvar)
         predmet.pouzit(hrdina);
     } else {
-        console.log(`${predmet.getNazev()} je předmět, který nelze jen tak použít.`);
+        console.log(`${predmet.getNazev()} nelze použít.`);
     }
 }
