@@ -1,12 +1,105 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="cs">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat RPG</title>
+    <title>AI RPG Companion</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+    <!-- BLOK A: OBRAZOVKA PRO TVORBU POSTAVY -->
+    <div id="screen-tvorba" class="container">
+        <h1>Vytvoř si hrdinu</h1>
+        
+        <div class="form-group">
+            <label for="input-jmeno">Jméno postavy:</label>
+            <input type="text" id="input-jmeno" placeholder="Zadej jméno...">
+        </div>
+
+        <div class="form-group">
+            <label for="select-rasa">Vyber rasu:</label>
+            <select id="select-rasa">
+                <option value="Člověk">Člověk (Univerzální, všestranný)</option>
+                <option value="Elf">Elf (Rychlý, inteligentní, méně HP)</option>
+                <option value="Trpaslík">Trpaslík (Silný, odolný, pomalý)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="select-povolani">Vyber povolání:</label>
+            <select id="select-povolani">
+                <option value="Mag">Mág</option>
+                <option value="Bojovnik">Bojovník</option>
+                <option value="Zlodej">Zloděj</option>
+            </select>
+        </div>
+
+        <button id="btn-zacit">Začít dobrodružství</button>
+    </div>
+
+    <!-- BLOK B: HERNÍ ROZHRANÍ (Zpočátku skryté) -->
+    <div id="screen-hra" class="container" style="display: none;">
+        
+        <div class="game-layout">
+            
+            <!-- LEVÁ POLOVINA: Chat a příběh -->
+            <div class="chat-section">
+                <div id="chat-log" class="chat-log">
+                    <!-- Sem bude JavaScript přidávat zprávy z příběhu -->
+                    <p>Vítej ve světě, hrdino. Tvé dobrodružství právě začíná...</p>
+                </div>
+                
+                <div class="chat-controls">
+                    <input type="text" id="input-chat" placeholder="Co chceš udělat? (např. rozhlédnu se kolem, vypiju lektvar...)">
+                    <button id="btn-odeslat">Odeslat</button>
+                </div>
+            </div>
+
+            <!-- PRAVÁ POLOVINA: Statistiky a Inventář -->
+            <div class="stats-section">
+                
+                <!-- Přepínací tlačítka -->
+                <div class="tabs">
+                    <button id="tab-postava" class="active">Postava</button>
+                    <button id="tab-inventar">Inventář</button>
+                </div>
+
+                <!-- Panel: Postava -->
+                <div id="panel-postava" class="panel">
+                    <h2 id="ui-jmeno">Jméno</h2>
+                    <p id="ui-rasa-povolani">Rasa | Povolání</p>
+                    
+                    <div class="bar-container">
+                        <label>Životy (HP): <span id="ui-hp-text">0/0</span></label>
+                        <div class="bar-bg"><div id="ui-hp-bar" class="bar-fill hp-color"></div></div>
+                    </div>
+
+                    <div class="bar-container" id="ui-zdroj-container">
+                        <label><span id="ui-zdroj-label">Mana/Focus</span>: <span id="ui-zdroj-text">0/100</span></label>
+                        <div class="bar-bg"><div id="ui-zdroj-bar" class="bar-fill zdroj-color"></div></div>
+                    </div>
+
+                    <div class="attributes">
+                        <p>Síla: <span id="ui-sila">0</span></p>
+                        <p>Obratnost: <span id="ui-obratnost">0</span></p>
+                        <p>Inteligence: <span id="ui-inteligence">0</span></p>
+                    </div>
+                </div>
+
+                <!-- Panel: Inventář (zpočátku skrytý) -->
+                <div id="panel-inventar" class="panel" style="display: none;">
+                    <h2>Tvůj batoh</h2>
+                    <ul id="ui-seznam-inventar">
+                        <!-- Sem bude JavaScript vypisovat předměty -->
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Načtení dat a logiky-->
     <script src="data.js"></script>
     <script src="script.js"></script>
 </body>
