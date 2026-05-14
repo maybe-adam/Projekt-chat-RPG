@@ -199,6 +199,18 @@ var LektvarMany = /** @class */ (function (_super) {
     };
     return LektvarMany;
 }(Lektvar));
+var tlacitkoZacit = document.getElementById("btn-zacit");
+var obrazovkaTvorba = document.getElementById("screen-tvorba");
+var obrazovkaHra = document.getElementById("screen-hra");
+// Správná kontrola: Zjistíme, zda všechny tři HTML prvky existují
+if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra) {
+    tlacitkoZacit.addEventListener("click", function () {
+        // Skryje obrazovku tvorby
+        obrazovkaTvorba.style.display = "none";
+        // Zobrazí herní obrazovku
+        obrazovkaHra.style.display = "block";
+    });
+}
 // ==========================================
 // HLAVNÍ LOGIKA A TESTOVÁNÍ (Oživení objektů)
 // ==========================================
