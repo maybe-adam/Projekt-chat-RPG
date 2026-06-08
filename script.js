@@ -55,6 +55,10 @@ var Postava = /** @class */ (function () {
     Postava.prototype.getMaxHp = function () {
         return this.maxHp;
     };
+    // Gettery pro základní atributy (čtení je povolené, zápis ne)
+    Postava.prototype.getSila = function () { return this.sila; };
+    Postava.prototype.getObratnost = function () { return this.obratnost; };
+    Postava.prototype.getInteligence = function () { return this.inteligence; };
     // Testovací metoda pro zranění
     Postava.prototype.zranit = function (dmg) {
         this.hp -= dmg;
@@ -202,76 +206,134 @@ var LektvarMany = /** @class */ (function (_super) {
 var tlacitkoZacit = document.getElementById("btn-zacit");
 var obrazovkaTvorba = document.getElementById("screen-tvorba");
 var obrazovkaHra = document.getElementById("screen-hra");
-// Správná kontrola: Zjistíme, zda všechny tři HTML prvky existují
-if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra) {
-    tlacitkoZacit.addEventListener("click", function () {
-        // Skryje obrazovku tvorby
-        obrazovkaTvorba.style.display = "none";
-        // Zobrazí herní obrazovku
-        obrazovkaHra.style.display = "block";
-    });
-}
-// ==========================================
-// HLAVNÍ LOGIKA A TESTOVÁNÍ (Oživení objektů)
-// ==========================================
-// 1. Simulace vstupu od hráče (výběr v UI)
-var zvoleneJmeno = "Aerin";
-var zvolenaRasaNazev = "Elf";
-var zvolenePovolani = "Mag";
-// 2. Nalezení rasy v datovém číselníku
-var vybranaRasa = suroveRasy.find(function (rasa) { return rasa.nazev === zvolenaRasaNazev; });
-// Bezpečnostní pojistka, kdybychom udělali překlep v názvu
-if (!vybranaRasa) {
-    throw new Error("Vybraná rasa neexistuje v databázi!");
-}
-// 3. Výpočet finálních statů (pevný základ + modifikátor rasy)
-// Základní HP je 50, zbytek statů 5, přičteme úpravy z vybrané rasy
-var startHp = 50 + vybranaRasa.modHp;
-var startSila = 5 + vybranaRasa.modSila;
-var startObratnost = 5 + vybranaRasa.modObratnost;
-var startInteligence = 5 + vybranaRasa.modInteligence;
-// 4. Vytvoření proměnné pro hrdinu (typ Postava)
+// Získáme prvky formuláře, abychom z nich mohli číst, co hráč vybral
+var inputJmeno = document.getElementById("input-jmeno");
+var selectRasa = document.getElementById("select-rasa");
+var selectPovolani = document.getElementById("select-povolani");
+// Získáme prvky UI pro zdroj (Mana/Focus/Obrana)
+var uiZdrojLabel = document.getElementById("ui-zdroj-label");
+var uiZdrojText = document.getElementById("ui-zdroj-text");
+var uiZdrojBar = document.getElementById("ui-zdroj-bar");
+// Získáme prvky UI pro životy (HP)
+var uiHpText = document.getElementById("ui-hp-text");
+var uiHpBar = document.getElementById("ui-hp-bar");
+// Získáme prvky UI pro základní info a atributy
+var uiJmeno = document.getElementById("ui-jmeno");
+var uiRasaPovolani = document.getElementById("ui-rasa-povolani");
+var uiSila = document.getElementById("ui-sila");
+var uiObratnost = document.getElementById("ui-obratnost");
+var uiInteligence = document.getElementById("ui-inteligence");
+// Proměnná pro hrdinu je připravená nahoře, naplníme ji až po kliknutí
 var hrdina;
-// Podle vybraného povolání vytvoříme správnou instanci pomocí if / else if
-if (zvolenePovolani === "Mag") {
-    hrdina = new Mag(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
-}
-else if (zvolenePovolani === "Bojovnik") {
-    hrdina = new Bojovnik(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
-}
-else if (zvolenePovolani === "Zlodej") {
-    hrdina = new Zlodej(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
-}
-else {
-    throw new Error("Neznámé povolání!");
-}
-console.log("--- HRDINA ZROZEN ---");
-console.log("Jm\u00E9no: ".concat(hrdina.getJmeno(), ", Rasa: ").concat(zvolenaRasaNazev, ", Povol\u00E1n\u00ED: ").concat(zvolenePovolani, ", HP: ").concat(hrdina.getHp(), "/").concat(hrdina.getMaxHp()));
-hrdina.vypisStatus();
-// 5. Oživení lektvarů z číselníku do inventáře
-// Vytvoříme prázdné pole, které přijímá jakékoliv lektvary
-var inventar = [];
-// Projdeme surová data a vytvoříme z nich objekty
-for (var _i = 0, suroveLektvary_1 = suroveLektvary; _i < suroveLektvary_1.length; _i++) {
-    var data = suroveLektvary_1[_i];
-    if (data.typ === "zdravi") {
-        inventar.push(new LektvarZdravi(data.nazev, data.hodnota));
-    }
-    else if (data.typ === "mana") {
-        inventar.push(new LektvarMany(data.nazev, data.hodnota));
-    }
-}
-console.log("--- TESTOV\u00C1N\u00CD POLYMORFISMU ---");
-// 6. Testovací smyčka
-hrdina.zranit(20);
-if (hrdina instanceof Mag)
-    hrdina.ztratitManu(60);
-for (var _a = 0, inventar_1 = inventar; _a < inventar_1.length; _a++) {
-    var predmet = inventar_1[_a];
-    if (predmet instanceof Lektvar) { // Ověříme, že to je použitelné (Lektvar)
-        predmet.pouzit(hrdina);
-    }
-    else {
-        console.log("".concat(predmet.getNazev(), " nelze pou\u017E\u00EDt."));
-    }
+// Správná kontrola: Zjistíme, zda všechny důležité HTML prvky existují
+if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa && selectPovolani) {
+    tlacitkoZacit.addEventListener("click", function () {
+        // 1. Přečteme aktuální hodnoty z formuláře
+        var zvoleneJmeno = inputJmeno.value;
+        var zvolenaRasaNazev = selectRasa.value;
+        var zvolenePovolani = selectPovolani.value;
+        // Kontrola: Zda uživatel zadal jméno, jinak ho nepustíme dál
+        if (zvoleneJmeno.trim() === "") {
+            alert("Prosím zadej jméno hrdiny!");
+            return; // Ukončí provádění této funkce, takže kód dál nepokračuje
+        }
+        // 2. Skryje obrazovku tvorby a zobrazí herní obrazovku
+        obrazovkaTvorba.style.display = "none";
+        obrazovkaHra.style.display = "block";
+        // ==========================================
+        // HLAVNÍ LOGIKA A TESTOVÁNÍ (Oživení objektů)
+        // ==========================================
+        // 3. Nalezení rasy v datovém číselníku podle výběru hráče
+        var vybranaRasa = suroveRasy.find(function (rasa) { return rasa.nazev === zvolenaRasaNazev; });
+        if (!vybranaRasa) {
+            throw new Error("Vybraná rasa neexistuje v databázi!");
+        }
+        // 4. Výpočet finálních statů (pevný základ 50 HP a 5 staty + úpravy z rasy)
+        var startHp = 50 + vybranaRasa.modHp;
+        var startSila = 5 + vybranaRasa.modSila;
+        var startObratnost = 5 + vybranaRasa.modObratnost;
+        var startInteligence = 5 + vybranaRasa.modInteligence;
+        // 5. Vytvoření proměnné pro hrdinu podle vybraného povolání
+        if (zvolenePovolani === "Mag") {
+            hrdina = new Mag(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
+        }
+        else if (zvolenePovolani === "Bojovnik") {
+            hrdina = new Bojovnik(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
+        }
+        else if (zvolenePovolani === "Zlodej") {
+            hrdina = new Zlodej(zvoleneJmeno, zvolenaRasaNazev, startHp, startSila, startObratnost, startInteligence);
+        }
+        else {
+            throw new Error("Neznámé povolání!");
+        }
+        console.log("--- HRDINA ZROZEN ---");
+        console.log("Jm\u00E9no: ".concat(hrdina.getJmeno(), ", Rasa: ").concat(zvolenaRasaNazev, ", Povol\u00E1n\u00ED: ").concat(zvolenePovolani, ", HP: ").concat(hrdina.getHp(), "/").concat(hrdina.getMaxHp()));
+        hrdina.vypisStatus();
+        // 6. Úprava uživatelského rozhraní (UI) podle toho, jaké povolání hráč hraje
+        // Ujistíme se, že všechny prvky na stránce existují, než s nimi začneme pracovat
+        if (uiZdrojLabel && uiZdrojText && uiZdrojBar) {
+            // Použijeme "instanceof" abychom zjistili typ hrdiny a upravili text
+            if (hrdina instanceof Mag) {
+                uiZdrojLabel.innerText = "Mana";
+                uiZdrojText.innerText = "".concat(hrdina.getMana(), "/100");
+                uiZdrojBar.style.backgroundColor = "var(--mana-color)";
+                uiZdrojBar.style.width = "".concat(hrdina.getMana(), "%");
+            }
+            else if (hrdina instanceof Zlodej) {
+                uiZdrojLabel.innerText = "Focus";
+                uiZdrojText.innerText = "".concat(hrdina.getFocus(), "/100");
+                uiZdrojBar.style.backgroundColor = "var(--focus-color)";
+                uiZdrojBar.style.width = "".concat(hrdina.getFocus(), "%");
+            }
+            else if (hrdina instanceof Bojovnik) {
+                uiZdrojLabel.innerText = "Obrana";
+                // Obrana funguje jinak, je to procento (např. 0%), ne body do 100
+                uiZdrojText.innerText = "".concat(hrdina.getRedukcePoskozeni(), "%");
+                uiZdrojBar.style.backgroundColor = "var(--obrana-color)";
+                uiZdrojBar.style.width = "".concat(hrdina.getRedukcePoskozeni(), "%");
+            }
+        }
+        // Aktualizace červeného baru pro životy (HP)
+        if (uiHpText && uiHpBar) {
+            uiHpText.innerText = "".concat(hrdina.getHp(), "/").concat(hrdina.getMaxHp());
+            // Výpočet procenta: (aktuální HP / maximální HP) * 100
+            var procentoHp = (hrdina.getHp() / hrdina.getMaxHp()) * 100;
+            uiHpBar.style.width = "".concat(procentoHp, "%");
+        }
+        // Aktualizace jména, rasy, povolání a atributů (Síla, Obratnost, Inteligence)
+        if (uiJmeno && uiRasaPovolani && uiSila && uiObratnost && uiInteligence) {
+            uiJmeno.innerText = hrdina.getJmeno();
+            uiRasaPovolani.innerText = "".concat(zvolenaRasaNazev, " | ").concat(zvolenePovolani);
+            // Atributy převedeme na text (string) pro vypsání do HTML
+            uiSila.innerText = hrdina.getSila().toString();
+            uiObratnost.innerText = hrdina.getObratnost().toString();
+            uiInteligence.innerText = hrdina.getInteligence().toString();
+        }
+        // 7. Oživení lektvarů z číselníku do inventáře pro testování
+        var inventar = [];
+        for (var _i = 0, suroveLektvary_1 = suroveLektvary; _i < suroveLektvary_1.length; _i++) {
+            var data = suroveLektvary_1[_i];
+            if (data.typ === "zdravi") {
+                inventar.push(new LektvarZdravi(data.nazev, data.hodnota));
+            }
+            else if (data.typ === "mana") {
+                inventar.push(new LektvarMany(data.nazev, data.hodnota));
+            }
+        }
+        console.log("--- TESTOV\u00C1N\u00CD POLYMORFISMU ---");
+        // 7. Testovací smyčka zranění a léčení z inventáře
+        hrdina.zranit(20);
+        if (hrdina instanceof Mag)
+            hrdina.ztratitManu(60);
+        for (var _a = 0, inventar_1 = inventar; _a < inventar_1.length; _a++) {
+            var predmet = inventar_1[_a];
+            // Zkontrolujeme, zda předmět z inventáře jde použít jako lektvar
+            if (predmet instanceof Lektvar) {
+                predmet.pouzit(hrdina);
+            }
+            else {
+                console.log("".concat(predmet.getNazev(), " nelze pou\u017E\u00EDt."));
+            }
+        }
+    });
 }
