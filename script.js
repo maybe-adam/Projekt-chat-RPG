@@ -203,6 +203,45 @@ var LektvarMany = /** @class */ (function (_super) {
     };
     return LektvarMany;
 }(Lektvar));
+// ==========================================
+// KATEGORIE: JÍDLO (Jednoduchý předmět)
+// ==========================================
+// Jídlo dědí z Předmětu. Aktuálně nemá žádný herní efekt,
+// ale slouží jako ukázka rozšiřitelnosti inventáře.
+var Jidlo = /** @class */ (function (_super) {
+    __extends(Jidlo, _super);
+    function Jidlo(nazev, popis) {
+        var _this = _super.call(this, nazev) || this;
+        _this.popis = popis;
+        return _this;
+    }
+    Jidlo.prototype.getPopis = function () {
+        return this.popis;
+    };
+    return Jidlo;
+}(Predmet));
+// ==========================================
+// KATEGORIE: VYBAVENÍ (Zbraně, štíty atd.)
+// ==========================================
+// Vybavení dědí z Předmětu a přidává bonusové statistiky,
+// které mohou ovlivnit bojeschopnost postavy.
+var Vybaveni = /** @class */ (function (_super) {
+    __extends(Vybaveni, _super);
+    function Vybaveni(nazev, silaBonus, rychlostUtoku, inteligenceBonus, obranaBonus) {
+        var _this = _super.call(this, nazev) || this;
+        _this.silaBonus = silaBonus;
+        _this.rychlostUtoku = rychlostUtoku;
+        _this.inteligenceBonus = inteligenceBonus;
+        _this.obranaBonus = obranaBonus;
+        return _this;
+    }
+    // Gettery pro zjištění statistik vybavení
+    Vybaveni.prototype.getSilaBonus = function () { return this.silaBonus; };
+    Vybaveni.prototype.getRychlostUtoku = function () { return this.rychlostUtoku; };
+    Vybaveni.prototype.getInteligenceBonus = function () { return this.inteligenceBonus; };
+    Vybaveni.prototype.getObranaBonus = function () { return this.obranaBonus; };
+    return Vybaveni;
+}(Predmet));
 var tlacitkoZacit = document.getElementById("btn-zacit");
 var obrazovkaTvorba = document.getElementById("screen-tvorba");
 var obrazovkaHra = document.getElementById("screen-hra");
@@ -223,6 +262,13 @@ var uiRasaPovolani = document.getElementById("ui-rasa-povolani");
 var uiSila = document.getElementById("ui-sila");
 var uiObratnost = document.getElementById("ui-obratnost");
 var uiInteligence = document.getElementById("ui-inteligence");
+// Získáme prvky pro přepínání záložek (tlačítek) a jejich panelů
+var tabPostava = document.getElementById("tab-postava");
+var tabInventar = document.getElementById("tab-inventar");
+var panelPostava = document.getElementById("panel-postava");
+var panelInventar = document.getElementById("panel-inventar");
+// Získáme prvek pro seznam předmětů v inventáři
+var uiSeznamInventar = document.getElementById("ui-seznam-inventar");
 // Proměnná pro hrdinu je připravená nahoře, naplníme ji až po kliknutí
 var hrdina;
 // Správná kontrola: Zjistíme, zda všechny důležité HTML prvky existují
@@ -240,6 +286,10 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
         // 2. Skryje obrazovku tvorby a zobrazí herní obrazovku
         obrazovkaTvorba.style.display = "none";
         obrazovkaHra.style.display = "block";
+        // Aktivujeme výchozí panel (Postava) pro mobilní zobrazení
+        if (panelPostava) {
+            panelPostava.classList.add("mobil-aktivni");
+        }
         // ==========================================
         // HLAVNÍ LOGIKA A TESTOVÁNÍ (Oživení objektů)
         // ==========================================
@@ -311,6 +361,7 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
         }
         // 7. Oživení lektvarů z číselníku do inventáře pro testování
         var inventar = [];
+        // Načtení lektvarů z databáze
         for (var _i = 0, suroveLektvary_1 = suroveLektvary; _i < suroveLektvary_1.length; _i++) {
             var data = suroveLektvary_1[_i];
             if (data.typ === "zdravi") {
@@ -320,13 +371,36 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
                 inventar.push(new LektvarMany(data.nazev, data.hodnota));
             }
         }
+        // Načtení jídla z databáze
+        for (var _a = 0, suroveJidlo_1 = suroveJidlo; _a < suroveJidlo_1.length; _a++) {
+            var data = suroveJidlo_1[_a];
+            inventar.push(new Jidlo(data.nazev, data.popis));
+        }
+        // Načtení vybavení z databáze
+        for (var _b = 0, suroveVybaveni_1 = suroveVybaveni; _b < suroveVybaveni_1.length; _b++) {
+            var data = suroveVybaveni_1[_b];
+            inventar.push(new Vybaveni(data.nazev, data.modSila, data.modRychlostUtoku, data.modInteligence, data.modObrana));
+        }
+        // 8. Vykreslení inventáře do HTML rozhraní
+        if (uiSeznamInventar) {
+            uiSeznamInventar.innerHTML = ""; // Nejprve vyčistíme starý seznam
+            for (var _c = 0, inventar_1 = inventar; _c < inventar_1.length; _c++) {
+                var predmet = inventar_1[_c];
+                // Vytvoříme novou položku seznamu (li)
+                var li = document.createElement("li");
+                // Vložíme do ní název předmětu
+                li.innerText = predmet.getNazev();
+                // Přidáme položku do HTML seznamu
+                uiSeznamInventar.appendChild(li);
+            }
+        }
         console.log("--- TESTOV\u00C1N\u00CD POLYMORFISMU ---");
         // 7. Testovací smyčka zranění a léčení z inventáře
         hrdina.zranit(20);
         if (hrdina instanceof Mag)
             hrdina.ztratitManu(60);
-        for (var _a = 0, inventar_1 = inventar; _a < inventar_1.length; _a++) {
-            var predmet = inventar_1[_a];
+        for (var _d = 0, inventar_2 = inventar; _d < inventar_2.length; _d++) {
+            var predmet = inventar_2[_d];
             // Zkontrolujeme, zda předmět z inventáře jde použít jako lektvar
             if (predmet instanceof Lektvar) {
                 predmet.pouzit(hrdina);
@@ -335,5 +409,36 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
                 console.log("".concat(predmet.getNazev(), " nelze pou\u017E\u00EDt."));
             }
         }
+    });
+}
+// ==========================================
+// PŘEPÍNÁNÍ ZÁLOŽEK (Postava / Inventář)
+// ==========================================
+// Tento kód umožní klikat na tlačítka záložek a přepínat mezi zobrazením
+// statistik postavy a jejím inventářem (a to jak na desktopu, tak na mobilu).
+if (tabPostava && tabInventar && panelPostava && panelInventar) {
+    // Kliknutí na záložku "Postava"
+    tabPostava.addEventListener("click", function () {
+        // Skryjeme inventář a ukážeme postavu
+        panelPostava.style.display = "block";
+        panelInventar.style.display = "none";
+        // Nastavíme aktivní vzhled tlačítka
+        tabPostava.classList.add("active");
+        tabInventar.classList.remove("active");
+        // Pro mobilní telefony: přidáme třídu, která panel vysune na celou obrazovku
+        panelPostava.classList.add("mobil-aktivni");
+        panelInventar.classList.remove("mobil-aktivni");
+    });
+    // Kliknutí na záložku "Inventář"
+    tabInventar.addEventListener("click", function () {
+        // Skryjeme postavu a ukážeme inventář
+        panelPostava.style.display = "none";
+        panelInventar.style.display = "block";
+        // Nastavíme aktivní vzhled tlačítka
+        tabInventar.classList.add("active");
+        tabPostava.classList.remove("active");
+        // Pro mobilní telefony: přidáme třídu, která panel vysune na celou obrazovku
+        panelInventar.classList.add("mobil-aktivni");
+        panelPostava.classList.remove("mobil-aktivni");
     });
 }

@@ -214,6 +214,50 @@ class LektvarMany extends Lektvar {
     }
 }
 
+// ==========================================
+// KATEGORIE: JÍDLO (Jednoduchý předmět)
+// ==========================================
+// Jídlo dědí z Předmětu. Aktuálně nemá žádný herní efekt,
+// ale slouží jako ukázka rozšiřitelnosti inventáře.
+class Jidlo extends Predmet {
+    protected popis: string;
+
+    constructor(nazev: string, popis: string) {
+        super(nazev);
+        this.popis = popis;
+    }
+
+    public getPopis(): string {
+        return this.popis;
+    }
+}
+
+// ==========================================
+// KATEGORIE: VYBAVENÍ (Zbraně, štíty atd.)
+// ==========================================
+// Vybavení dědí z Předmětu a přidává bonusové statistiky,
+// které mohou ovlivnit bojeschopnost postavy.
+class Vybaveni extends Predmet {
+    protected silaBonus: number;
+    protected rychlostUtoku: number;
+    protected inteligenceBonus: number;
+    protected obranaBonus: number;
+
+    constructor(nazev: string, silaBonus: number, rychlostUtoku: number, inteligenceBonus: number, obranaBonus: number) {
+        super(nazev);
+        this.silaBonus = silaBonus;
+        this.rychlostUtoku = rychlostUtoku;
+        this.inteligenceBonus = inteligenceBonus;
+        this.obranaBonus = obranaBonus;
+    }
+
+    // Gettery pro zjištění statistik vybavení
+    public getSilaBonus(): number { return this.silaBonus; }
+    public getRychlostUtoku(): number { return this.rychlostUtoku; }
+    public getInteligenceBonus(): number { return this.inteligenceBonus; }
+    public getObranaBonus(): number { return this.obranaBonus; }
+}
+
 const tlacitkoZacit = document.getElementById("btn-zacit");
 const obrazovkaTvorba = document.getElementById("screen-tvorba");
 const obrazovkaHra = document.getElementById("screen-hra");
@@ -239,6 +283,15 @@ const uiSila = document.getElementById("ui-sila");
 const uiObratnost = document.getElementById("ui-obratnost");
 const uiInteligence = document.getElementById("ui-inteligence");
 
+// Získáme prvky pro přepínání záložek (tlačítek) a jejich panelů
+const tabPostava = document.getElementById("tab-postava");
+const tabInventar = document.getElementById("tab-inventar");
+const panelPostava = document.getElementById("panel-postava");
+const panelInventar = document.getElementById("panel-inventar");
+
+// Získáme prvek pro seznam předmětů v inventáři
+const uiSeznamInventar = document.getElementById("ui-seznam-inventar");
+
 // Proměnná pro hrdinu je připravená nahoře, naplníme ji až po kliknutí
 let hrdina: Postava;
 
@@ -256,9 +309,14 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
             return; // Ukončí provádění této funkce, takže kód dál nepokračuje
         }
 
-        // 2. Skryje obrazovku tvorby a zobrazí herní obrazovku
+                // 2. Skryje obrazovku tvorby a zobrazí herní obrazovku
         obrazovkaTvorba.style.display = "none";
         obrazovkaHra.style.display = "block";
+
+        // Aktivujeme výchozí panel (Postava) pro mobilní zobrazení
+        if (panelPostava) {
+            panelPostava.classList.add("mobil-aktivni");
+        }
 
         // ==========================================
         // HLAVNÍ LOGIKA A TESTOVÁNÍ (Oživení objektů)
@@ -337,11 +395,44 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
         // 7. Oživení lektvarů z číselníku do inventáře pro testování
         const inventar: Predmet[] = [];
 
+        // Načtení lektvarů z databáze
         for (const data of suroveLektvary) {
             if (data.typ === "zdravi") {
                 inventar.push(new LektvarZdravi(data.nazev, data.hodnota));
             } else if (data.typ === "mana") {
                 inventar.push(new LektvarMany(data.nazev, data.hodnota));
+            }
+        }
+
+        // Načtení jídla z databáze
+        for (const data of suroveJidlo) {
+            inventar.push(new Jidlo(data.nazev, data.popis));
+        }
+
+        // Načtení vybavení z databáze
+        for (const data of suroveVybaveni) {
+            inventar.push(new Vybaveni(
+                data.nazev,
+                data.modSila,
+                data.modRychlostUtoku,
+                data.modInteligence,
+                data.modObrana
+            ));
+        }
+
+        // 8. Vykreslení inventáře do HTML rozhraní
+        if (uiSeznamInventar) {
+            uiSeznamInventar.innerHTML = ""; // Nejprve vyčistíme starý seznam
+
+            for (const predmet of inventar) {
+                // Vytvoříme novou položku seznamu (li)
+                const li = document.createElement("li");
+                
+                // Vložíme do ní název předmětu
+                li.innerText = predmet.getNazev();
+
+                // Přidáme položku do HTML seznamu
+                uiSeznamInventar.appendChild(li);
             }
         }
 
@@ -359,5 +450,43 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
                 console.log(`${predmet.getNazev()} nelze použít.`);
             }
         }
+    });
+}
+
+// ==========================================
+// PŘEPÍNÁNÍ ZÁLOŽEK (Postava / Inventář)
+// ==========================================
+// Tento kód umožní klikat na tlačítka záložek a přepínat mezi zobrazením
+// statistik postavy a jejím inventářem (a to jak na desktopu, tak na mobilu).
+if (tabPostava && tabInventar && panelPostava && panelInventar) {
+    
+    // Kliknutí na záložku "Postava"
+    tabPostava.addEventListener("click", () => {
+        // Skryjeme inventář a ukážeme postavu
+        panelPostava.style.display = "block";
+        panelInventar.style.display = "none";
+
+        // Nastavíme aktivní vzhled tlačítka
+        tabPostava.classList.add("active");
+        tabInventar.classList.remove("active");
+
+        // Pro mobilní telefony: přidáme třídu, která panel vysune na celou obrazovku
+        panelPostava.classList.add("mobil-aktivni");
+        panelInventar.classList.remove("mobil-aktivni");
+    });
+
+    // Kliknutí na záložku "Inventář"
+    tabInventar.addEventListener("click", () => {
+        // Skryjeme postavu a ukážeme inventář
+        panelPostava.style.display = "none";
+        panelInventar.style.display = "block";
+
+        // Nastavíme aktivní vzhled tlačítka
+        tabInventar.classList.add("active");
+        tabPostava.classList.remove("active");
+
+        // Pro mobilní telefony: přidáme třídu, která panel vysune na celou obrazovku
+        panelInventar.classList.add("mobil-aktivni");
+        panelPostava.classList.remove("mobil-aktivni");
     });
 }
