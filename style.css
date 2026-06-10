@@ -182,41 +182,111 @@ button:hover {
     align-items: center;
 }
 
+/* --- TESTOVACÍ PANEL (Tlačítka vlevo) --- */
+.test-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background-color: var(--panel-bg);
+    border-radius: 8px;
+    padding: 15px;
+    flex: 0 0 160px; /* Pevná šířka na desktopu */
+    height: fit-content;
+}
+
+.test-panel h3 {
+    font-size: 1.1em;
+    color: #fff;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.btn-test {
+    width: 100%;
+    font-size: 0.9em;
+    padding: 10px;
+    background-color: #d32f2f; /* Červená pro poškození */
+    color: white;
+    font-weight: bold;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-test:hover {
+    background-color: #c62828;
+}
+
+.btn-test:active {
+    transform: scale(0.98);
+}
+
+#btn-test-drain {
+    background-color: #e65100; /* Oranžová pro vybití */
+}
+
+#btn-test-drain:hover {
+    background-color: #ef6c00;
+}
+
+/* Klikatelné předměty v inventáři (lektvary) */
+.klikaci-predmet {
+    cursor: pointer;
+    transition: background-color 0.2s, border-left 0.2s;
+}
+
+.klikaci-predmet:hover {
+    background-color: #333;
+    border-left: 4px solid var(--primary-color);
+    padding-left: 11px; /* Kompenzace za 4px border + margin */
+}
+
 /* --- RESPONZIVITA (MOBILY) --- */
 /* --- RESPONZIVITA (MOBILY) --- */
 @media (max-width: 768px) {
     .game-layout {
         flex-direction: column;
-        height: 94vh; /* Celý layout zabere téměř celou výšku okna */
-        gap: 10px;
+        height: auto; /* Změna na auto, aby se stránka mohla na mobilu posouvat dolů */
+        gap: 15px;
+    }
+
+    .test-panel {
+        flex-direction: row;
+        flex: none;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .test-panel h3 {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+
+    .btn-test {
+        flex: 1;
+        min-width: 120px;
     }
     
     .chat-section {
-        flex-grow: 1; /* Chat se roztáhne a zabere veškeré volné místo */
-        height: auto; 
+        height: 450px; /* Pevná výška chatu na mobilu, aby se pod něj vešel panel postavy */
+        flex: none;
     }
 
     .stats-section {
         flex: none;
-        background-color: transparent; /* Zprůhledníme obal */
-        padding: 0;
+        background-color: var(--panel-bg); /* Ponecháme tmavé pozadí panelu i na mobilu */
+        border-radius: 8px;
+        padding: 15px;
     }
 
     .panel {
-        display: none; /* Skryjeme panely, ukáže je až JS po kliknutí */
-        
-        /* Příprava pro JS: Až se panel ukáže, bude přes celou obrazovku */
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        right: 20px;
-        bottom: 20px;
-        z-index: 100;
-        box-shadow: 0 0 20px rgba(0,0,0,0.8);
-        border: 1px solid #555;
+        display: none; /* Ve výchozím stavu panely skryjeme, ukážeme je až podle aktivní záložky */
     }
 
-    /* Třída, kterou později přes TypeScript přidáme panelu, aby vyskočil */
+    /* Třída, kterou přes TypeScript přidáme panelu pro zobrazení aktivní záložky */
     .panel.mobil-aktivni {
         display: block !important;
     }

@@ -58,13 +58,9 @@ abstract class Postava {
     public getObratnost(): number { return this.obratnost; }
     public getInteligence(): number { return this.inteligence; }
 
-    public abstract vypisStatus(): void;
-
     // Testovací metoda pro zranění
-    public zranit(dmg: number): void{
-        this.hp -= dmg;
-        if (this.hp < 0) this.hp = 0;
-        console.log(`${this.jmeno} utrpěl ${dmg} poškození. (HP: ${this.hp}/${this.maxHp})`);
+    public zranit(dmg: number): void {
+        this.zmenHp(-dmg);
     }
 }
 
@@ -87,16 +83,6 @@ class Mag extends Postava {
     public getMana(): number {
         return this.mana;
     }
-
-    public vypisStatus(): void { 
-    console.log(`Mág ${this.jmeno} | HP: ${this.hp}/${this.maxHp} | Mana: ${this.mana}/100`); 
-    }
-
-    // Testovací metoda pro manu
-    public ztratitManu(hodnota: number): void {
-        this.zmenManu(-hodnota);
-        console.log(`${this.jmeno} ztratil ${hodnota} many. (Mana: ${this.mana}/100)`);
-    }
 }
 
 // Konkrétní potomek: Bojovník
@@ -117,11 +103,6 @@ class Bojovnik extends Postava {
     public getRedukcePoskozeni(): number {
         return this.redukcePoskozeni;
     }
-
-    public vypisStatus(): void { 
-    console.log(`Bojovník ${this.jmeno} | HP: ${this.hp}/${this.maxHp} | Redukce poškození: ${this.redukcePoskozeni}%`); 
-    }
-
 }
 
 // Konkrétní potomek: Zloděj
@@ -142,10 +123,6 @@ class Zlodej extends Postava {
     // Getter pro získání focusu (čtení je povolené, zápis ne)
     public getFocus(): number {
         return this.focus;
-    }
-
-    public vypisStatus(): void { 
-    console.log(`Zloděj ${this.jmeno} | HP: ${this.hp}/${this.maxHp} | Focus: ${this.focus}/100`); 
     }
 }
 
@@ -190,7 +167,6 @@ class LektvarZdravi extends Lektvar {
 
     public pouzit(cil: Postava): void {
         cil.zmenHp(this.silaLeceni);
-        console.log(`${cil.getJmeno()} vypil ${this.nazev}. (HP: ${cil.getHp()}/${cil.getMaxHp()})`);
     }
 }
 
@@ -206,10 +182,6 @@ class LektvarMany extends Lektvar {
     public pouzit(cil: Postava): void {
         if (cil instanceof Mag) {
             cil.zmenManu(this.doplneni);
-            console.log(`${cil.getJmeno()} vypil ${this.nazev}. (Mana: ${cil.getMana()}/100)`);
-        } else {
-            // Zpráva pro ne-mágy (vypije, ale nic se nestane)
-            console.log(`${cil.getJmeno()} vypil ${this.nazev}, ale jelikož není mág, nic se nestalo.`);
         }
     }
 }
@@ -292,8 +264,66 @@ const panelInventar = document.getElementById("panel-inventar");
 // Získáme prvek pro seznam předmětů v inventáři
 const uiSeznamInventar = document.getElementById("ui-seznam-inventar");
 
+// Získáme prvky pro testovací tlačítka
+const btnTestDamage = document.getElementById("btn-test-damage");
+const btnTestDrain = document.getElementById("btn-test-drain");
+
 // Proměnná pro hrdinu je připravená nahoře, naplníme ji až po kliknutí
 let hrdina: Postava;
+
+// Globální pole pro předměty v inventáři
+let inventar: Predmet[] = [];
+
+// Pomocná funkce pro aktualizaci životů (HP) a speciálního zdroje (Mana/Focus/Obrana) v UI
+function aktualizujStavUI(): void {
+    if (!hrdina) return;
+
+    // Aktualizace červeného baru pro životy (HP)
+    if (uiHpText && uiHpBar) {
+        uiHpText.innerText = `${hrdina.getHp()}/${hrdina.getMaxHp()}`;
+        const procentoHp = (hrdina.getHp() / hrdina.getMaxHp()) * 100;
+        uiHpBar.style.width = `${procentoHp}%`;
+    }
+
+    // Aktualizace baru pro speciální zdroj podle povolání hrdiny
+    if (uiZdrojLabel && uiZdrojText && uiZdrojBar) {
+        if (hrdina instanceof Mag) {
+            uiZdrojLabel.innerText = "Mana";
+            uiZdrojText.innerText = `${hrdina.getMana()}/100`;
+            uiZdrojBar.style.backgroundColor = "var(--mana-color)";
+            uiZdrojBar.style.width = `${hrdina.getMana()}%`;
+        } else if (hrdina instanceof Zlodej) {
+            uiZdrojLabel.innerText = "Focus";
+            uiZdrojText.innerText = `${hrdina.getFocus()}/100`;
+            uiZdrojBar.style.backgroundColor = "var(--focus-color)";
+            uiZdrojBar.style.width = `${hrdina.getFocus()}%`;
+        } else if (hrdina instanceof Bojovnik) {
+            uiZdrojLabel.innerText = "Obrana";
+            uiZdrojText.innerText = `${hrdina.getRedukcePoskozeni()}%`;
+            uiZdrojBar.style.backgroundColor = "var(--obrana-color)";
+            uiZdrojBar.style.width = `${hrdina.getRedukcePoskozeni()}%`;
+        }
+    }
+}
+
+// Pomocná funkce pro vykreslení inventáře do HTML rozhraní (používá innerHTML a jednodušší syntaxi)
+function vykresliInventar(): void {
+    if (!uiSeznamInventar) return;
+
+    // Nejprve vyčistíme starý obsah
+    uiSeznamInventar.innerHTML = "";
+
+    // Procházíme předměty a vytváříme jejich HTML reprezentaci jako řetězce
+    for (const predmet of inventar) {
+        if (predmet instanceof Lektvar) {
+            // Lektvary označíme třídou 'klikaci-predmet', aby hráč věděl, že na ně může kliknout
+            uiSeznamInventar.innerHTML += `<li class="klikaci-predmet" title="Kliknutím vypiješ tento lektvar">${predmet.getNazev()}</li>`;
+        } else {
+            // Ostatní předměty nejsou klikatelné
+            uiSeznamInventar.innerHTML += `<li>${predmet.getNazev()}</li>`;
+        }
+    }
+}
 
 // Správná kontrola: Zjistíme, zda všechny důležité HTML prvky existují
 if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa && selectPovolani) {
@@ -309,7 +339,7 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
             return; // Ukončí provádění této funkce, takže kód dál nepokračuje
         }
 
-                // 2. Skryje obrazovku tvorby a zobrazí herní obrazovku
+        // 2. Skryje obrazovku tvorby a zobrazí herní obrazovku
         obrazovkaTvorba.style.display = "none";
         obrazovkaHra.style.display = "block";
 
@@ -319,7 +349,7 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
         }
 
         // ==========================================
-        // HLAVNÍ LOGIKA A TESTOVÁNÍ (Oživení objektů)
+        // HLAVNÍ LOGIKA (Oživení objektů)
         // ==========================================
 
         // 3. Nalezení rasy v datovém číselníku podle výběru hráče
@@ -346,40 +376,8 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
             throw new Error("Neznámé povolání!");
         }
 
-        console.log(`--- HRDINA ZROZEN ---`);
-        console.log(`Jméno: ${hrdina.getJmeno()}, Rasa: ${zvolenaRasaNazev}, Povolání: ${zvolenePovolani}, HP: ${hrdina.getHp()}/${hrdina.getMaxHp()}`);
-        hrdina.vypisStatus();
-
-        // 6. Úprava uživatelského rozhraní (UI) podle toho, jaké povolání hráč hraje
-        // Ujistíme se, že všechny prvky na stránce existují, než s nimi začneme pracovat
-        if (uiZdrojLabel && uiZdrojText && uiZdrojBar) {
-            // Použijeme "instanceof" abychom zjistili typ hrdiny a upravili text
-            if (hrdina instanceof Mag) {
-                uiZdrojLabel.innerText = "Mana";
-                uiZdrojText.innerText = `${hrdina.getMana()}/100`;
-                uiZdrojBar.style.backgroundColor = "var(--mana-color)";
-                uiZdrojBar.style.width = `${hrdina.getMana()}%`;
-            } else if (hrdina instanceof Zlodej) {
-                uiZdrojLabel.innerText = "Focus";
-                uiZdrojText.innerText = `${hrdina.getFocus()}/100`;
-                uiZdrojBar.style.backgroundColor = "var(--focus-color)";
-                uiZdrojBar.style.width = `${hrdina.getFocus()}%`;
-            } else if (hrdina instanceof Bojovnik) {
-                uiZdrojLabel.innerText = "Obrana";
-                // Obrana funguje jinak, je to procento (např. 0%), ne body do 100
-                uiZdrojText.innerText = `${hrdina.getRedukcePoskozeni()}%`;
-                uiZdrojBar.style.backgroundColor = "var(--obrana-color)";
-                uiZdrojBar.style.width = `${hrdina.getRedukcePoskozeni()}%`;
-            }
-        }
-
-        // Aktualizace červeného baru pro životy (HP)
-        if (uiHpText && uiHpBar) {
-            uiHpText.innerText = `${hrdina.getHp()}/${hrdina.getMaxHp()}`;
-            // Výpočet procenta: (aktuální HP / maximální HP) * 100
-            const procentoHp = (hrdina.getHp() / hrdina.getMaxHp()) * 100;
-            uiHpBar.style.width = `${procentoHp}%`;
-        }
+        // 6. Aktualizace životů a speciálního zdroje v UI
+        aktualizujStavUI();
 
         // Aktualizace jména, rasy, povolání a atributů (Síla, Obratnost, Inteligence)
         if (uiJmeno && uiRasaPovolani && uiSila && uiObratnost && uiInteligence) {
@@ -392,8 +390,8 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
             uiInteligence.innerText = hrdina.getInteligence().toString();
         }
 
-        // 7. Oživení lektvarů z číselníku do inventáře pro testování
-        const inventar: Predmet[] = [];
+        // 7. Načtení předmětů z číselníku do globálního inventáře
+        inventar = [];
 
         // Načtení lektvarů z databáze
         for (const data of suroveLektvary) {
@@ -421,35 +419,7 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
         }
 
         // 8. Vykreslení inventáře do HTML rozhraní
-        if (uiSeznamInventar) {
-            uiSeznamInventar.innerHTML = ""; // Nejprve vyčistíme starý seznam
-
-            for (const predmet of inventar) {
-                // Vytvoříme novou položku seznamu (li)
-                const li = document.createElement("li");
-                
-                // Vložíme do ní název předmětu
-                li.innerText = predmet.getNazev();
-
-                // Přidáme položku do HTML seznamu
-                uiSeznamInventar.appendChild(li);
-            }
-        }
-
-        console.log(`--- TESTOVÁNÍ POLYMORFISMU ---`);
-
-        // 7. Testovací smyčka zranění a léčení z inventáře
-        hrdina.zranit(20);
-        if (hrdina instanceof Mag) hrdina.ztratitManu(60);
-
-        for (const predmet of inventar) {
-            // Zkontrolujeme, zda předmět z inventáře jde použít jako lektvar
-            if (predmet instanceof Lektvar) { 
-                predmet.pouzit(hrdina);
-            } else {
-                console.log(`${predmet.getNazev()} nelze použít.`);
-            }
-        }
+        vykresliInventar();
     });
 }
 
@@ -488,5 +458,68 @@ if (tabPostava && tabInventar && panelPostava && panelInventar) {
         // Pro mobilní telefony: přidáme třídu, která panel vysune na celou obrazovku
         panelInventar.classList.add("mobil-aktivni");
         panelPostava.classList.remove("mobil-aktivni");
+    });
+}
+
+// ==========================================
+// TLAČÍTKA PRO TESTOVÁNÍ (Zranění a Vybití)
+// ==========================================
+// Přidáme posluchače událostí pro testovací tlačítka v levém panelu
+if (btnTestDamage) {
+    btnTestDamage.addEventListener("click", () => {
+        if (hrdina) {
+            // Zraníme hrdinu o 10 HP
+            hrdina.zranit(10);
+            // Aktualizujeme stav v UI
+            aktualizujStavUI();
+        }
+    });
+}
+
+if (btnTestDrain) {
+    btnTestDrain.addEventListener("click", () => {
+        if (hrdina) {
+            // Odebereme 10 many nebo focusu podle povolání hrdiny
+            if (hrdina instanceof Mag) {
+                hrdina.zmenManu(-10);
+            } else if (hrdina instanceof Zlodej) {
+                hrdina.zmenFocus(-10);
+            }
+            // Aktualizujeme stav v UI
+            aktualizujStavUI();
+        }
+    });
+}
+
+// ==========================================
+// POUŽÍVÁNÍ PŘEDMĚTŮ (Klikání v inventáři)
+// ==========================================
+// Nastavení klikatelnosti pro předměty v inventáři (využívá delegování událostí na celém seznamu)
+if (uiSeznamInventar) {
+    uiSeznamInventar.addEventListener("click", (e) => {
+        const target = e.target as HTMLElement;
+        
+        // Zkontrolujeme, zda kliknutí směřovalo na klikatelný předmět (lektvar)
+        if (target && target.classList.contains("klikaci-predmet")) {
+            // Získáme název předmětu z textu položky
+            const nazevLektvaru = target.innerText;
+            // Najdeme lektvar v našem inventáři podle názvu
+            const lektvar = inventar.find(p => p.getNazev() === nazevLektvaru);
+            
+            if (hrdina && lektvar instanceof Lektvar) {
+                // Hrdina lektvar vypije (polymorfní chování)
+                lektvar.pouzit(hrdina);
+                
+                // Odstraníme vypitý lektvar z batohu
+                const index = inventar.indexOf(lektvar);
+                if (index !== -1) {
+                    inventar.splice(index, 1);
+                }
+                
+                // Překreslíme statistiky hrdiny a aktualizujeme zobrazení batohu
+                aktualizujStavUI();
+                vykresliInventar();
+            }
+        }
     });
 }
