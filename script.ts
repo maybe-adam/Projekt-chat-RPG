@@ -13,6 +13,7 @@ abstract class Postava {
     protected sila: number;
     protected obratnost: number;
     protected inteligence: number;
+    protected bonusMaxHp: number = 0; // Nový atribut pro bonusové maximální životy z vybavení
 
     constructor(jmeno: string, rasa: string, maxHp: number, sila: number, obratnost: number, inteligence: number) {
         // Validace dat (nesmí projít nesmyslné hodnoty)
@@ -34,8 +35,14 @@ abstract class Postava {
     // Veřejná metoda pro manipulaci se zdravím
     public zmenHp(hodnota: number): void {
         this.hp += hodnota;
-        if (this.hp > this.maxHp) this.hp = this.maxHp;
+        const aktualniMax = this.getMaxHp();
+        if (this.hp > aktualniMax) this.hp = aktualniMax;
         if (this.hp < 0) this.hp = 0;
+    }
+
+    // Metoda pro nastavení bonusových maximálních HP (volá se při oblékání/svlékání)
+    public setBonusMaxHp(bonus: number): void {
+        this.bonusMaxHp = bonus;
     }
 
     // Getter pro získání jména (čtení je povolené, zápis ne)
@@ -48,9 +55,9 @@ abstract class Postava {
         return this.hp;
     }
 
-    // Getter pro získání maximálních životů (čtení je povolené, zápis ne)
+    // Getter pro získání maximálních životů včetně bonusů z vybavení
     public getMaxHp(): number {
-        return this.maxHp;
+        return this.maxHp + this.bonusMaxHp;
     }
 
     // Gettery pro základní atributy (čtení je povolené, zápis ne)
@@ -91,12 +98,25 @@ class Bojovnik extends Postava {
 
     constructor(jmeno: string, rasa: string, maxHp: number, sila: number, obratnost: number, inteligence: number) {
         super(jmeno, rasa, maxHp, sila, obratnost, inteligence); // Volání konstruktoru rodiče
-        this.redukcePoskozeni = 0; //specifický atribut pro bojovníka
+        this.redukcePoskozeni = 0; // Začíná bez Adrenalinu
     }
 
-    public nastavRedukci(hodnota: number): void {
-        if (hodnota < 0 || hodnota > 100) throw new Error("Redukce poškození musí být mezi 0 a 100.");
-        this.redukcePoskozeni = hodnota;
+    public zmenAdrenalin(hodnota: number): void {
+        this.redukcePoskozeni += hodnota;
+        if (this.redukcePoskozeni > 80) this.redukcePoskozeni = 80; // Limit na max 80% redukce
+        if (this.redukcePoskozeni < 0) this.redukcePoskozeni = 0;
+    }
+
+    // Bojovník má speciální reakci na zranění
+    public zranit(dmg: number): void {
+        // Sníží poškození podle aktuálního adrenalinu (0-80%)
+        const redukce = this.redukcePoskozeni / 100;
+        const skutecnePoskozeni = Math.round(dmg * (1 - redukce));
+        
+        super.zranit(skutecnePoskozeni);
+
+        // Získá trochu Adrenalinu z každé rány, takže další rány bolí méně
+        this.zmenAdrenalin(10); 
     }
 
     // Getter pro získání redukce (čtení je povolené, zápis ne)
@@ -189,18 +209,29 @@ class LektvarMany extends Lektvar {
 // ==========================================
 // KATEGORIE: JÍDLO (Jednoduchý předmět)
 // ==========================================
-// Jídlo dědí z Předmětu. Aktuálně nemá žádný herní efekt,
-// ale slouží jako ukázka rozšiřitelnosti inventáře.
+// Jídlo dědí z Předmětu a umožňuje vyléčit malou část životů (HP)
 class Jidlo extends Predmet {
     protected popis: string;
+    protected silaLeceni: number; // Hodnota, o kterou jídlo vyléčí HP
 
-    constructor(nazev: string, popis: string) {
+    constructor(nazev: string, popis: string, silaLeceni: number) {
         super(nazev);
+        if (silaLeceni < 0) throw new Error("Síla léčení z jídla nesmí být záporná.");
         this.popis = popis;
+        this.silaLeceni = silaLeceni;
     }
 
     public getPopis(): string {
         return this.popis;
+    }
+
+    public getSilaLeceni(): number {
+        return this.silaLeceni;
+    }
+
+    // Metoda pro konzumaci jídla (vyléčí postavu)
+    public snist(cil: Postava): void {
+        cil.zmenHp(this.silaLeceni);
     }
 }
 
@@ -210,24 +241,30 @@ class Jidlo extends Predmet {
 // Vybavení dědí z Předmětu a přidává bonusové statistiky,
 // které mohou ovlivnit bojeschopnost postavy.
 class Vybaveni extends Predmet {
+    protected typ: string; // "zbran" nebo "stit"
     protected silaBonus: number;
     protected rychlostUtoku: number;
     protected inteligenceBonus: number;
     protected obranaBonus: number;
+    protected obratnostBonus: number;
 
-    constructor(nazev: string, silaBonus: number, rychlostUtoku: number, inteligenceBonus: number, obranaBonus: number) {
+    constructor(nazev: string, typ: string, silaBonus: number, rychlostUtoku: number, inteligenceBonus: number, obranaBonus: number, obratnostBonus: number) {
         super(nazev);
+        this.typ = typ;
         this.silaBonus = silaBonus;
         this.rychlostUtoku = rychlostUtoku;
         this.inteligenceBonus = inteligenceBonus;
         this.obranaBonus = obranaBonus;
+        this.obratnostBonus = obratnostBonus;
     }
 
-    // Gettery pro zjištění statistik vybavení
+    // Gettery pro zjištění statistik a typu vybavení
+    public getTyp(): string { return this.typ; }
     public getSilaBonus(): number { return this.silaBonus; }
     public getRychlostUtoku(): number { return this.rychlostUtoku; }
     public getInteligenceBonus(): number { return this.inteligenceBonus; }
     public getObranaBonus(): number { return this.obranaBonus; }
+    public getObratnostBonus(): number { return this.obratnostBonus; }
 }
 
 const tlacitkoZacit = document.getElementById("btn-zacit");
@@ -274,16 +311,51 @@ let hrdina: Postava;
 // Globální pole pro předměty v inventáři
 let inventar: Predmet[] = [];
 
-// Pomocná funkce pro aktualizaci životů (HP) a speciálního zdroje (Mana/Focus/Obrana) v UI
+// Globální proměnné pro aktuálně vybavenou zbraň a štít
+let vybavenaZbran: Vybaveni | null = null;
+let vybavenyStit: Vybaveni | null = null;
+
+// Pomocná funkce pro aktualizaci životů (HP), speciálního zdroje (Mana/Focus/Adrenalin) a statistik v UI
 function aktualizujStavUI(): void {
     if (!hrdina) return;
 
+    // Výpočet celkových bonusů z aktuálně vybavených předmětů
+    let bonusSila = 0;
+    let bonusInteligence = 0;
+    let bonusObratnost = 0;
+
+    // Bonusy ze zbraně
+    if (vybavenaZbran) {
+        bonusSila += vybavenaZbran.getSilaBonus();
+        bonusInteligence += vybavenaZbran.getInteligenceBonus();
+        bonusObratnost += vybavenaZbran.getObratnostBonus();
+    }
+
+    // Bonusy ze štítu (životy už jsou nastavené v postavě přes setBonusMaxHp)
+    if (vybavenyStit) {
+        bonusSila += vybavenyStit.getSilaBonus();
+        bonusInteligence += vybavenyStit.getInteligenceBonus();
+        bonusObratnost += vybavenyStit.getObratnostBonus();
+    }
+
+    // Celkové maximální HP (už obsahuje bonus ze štítu díky getMaxHp)
+    const celkoveMaxHp = hrdina.getMaxHp();
+
     // Aktualizace červeného baru pro životy (HP)
     if (uiHpText && uiHpBar) {
-        uiHpText.innerText = `${hrdina.getHp()}/${hrdina.getMaxHp()}`;
-        const procentoHp = (hrdina.getHp() / hrdina.getMaxHp()) * 100;
+        uiHpText.innerText = `${hrdina.getHp()}/${celkoveMaxHp}`;
+        const procentoHp = (hrdina.getHp() / celkoveMaxHp) * 100;
         uiHpBar.style.width = `${procentoHp}%`;
     }
+
+    // Aktualizace statistik na obrazovce
+    const celkovaSila = hrdina.getSila() + bonusSila;
+    const celkovaInteligence = hrdina.getInteligence() + bonusInteligence;
+    const celkovaObratnost = hrdina.getObratnost() + bonusObratnost;
+
+    if (uiSila) uiSila.innerText = celkovaSila.toString();
+    if (uiInteligence) uiInteligence.innerText = celkovaInteligence.toString();
+    if (uiObratnost) uiObratnost.innerText = celkovaObratnost.toString();
 
     // Aktualizace baru pro speciální zdroj podle povolání hrdiny
     if (uiZdrojLabel && uiZdrojText && uiZdrojBar) {
@@ -298,9 +370,10 @@ function aktualizujStavUI(): void {
             uiZdrojBar.style.backgroundColor = "var(--focus-color)";
             uiZdrojBar.style.width = `${hrdina.getFocus()}%`;
         } else if (hrdina instanceof Bojovnik) {
-            uiZdrojLabel.innerText = "Obrana";
+            // Adrenalin: situační redukce poškození bojovníka
+            uiZdrojLabel.innerText = "Adrenalin";
             uiZdrojText.innerText = `${hrdina.getRedukcePoskozeni()}%`;
-            uiZdrojBar.style.backgroundColor = "var(--obrana-color)";
+            uiZdrojBar.style.backgroundColor = "var(--adrenalin-color)";
             uiZdrojBar.style.width = `${hrdina.getRedukcePoskozeni()}%`;
         }
     }
@@ -315,9 +388,16 @@ function vykresliInventar(): void {
 
     // Procházíme předměty a vytváříme jejich HTML reprezentaci jako řetězce
     for (const predmet of inventar) {
-        if (predmet instanceof Lektvar) {
-            // Lektvary označíme třídou 'klikaci-predmet', aby hráč věděl, že na ně může kliknout
-            uiSeznamInventar.innerHTML += `<li class="klikaci-predmet" title="Kliknutím vypiješ tento lektvar">${predmet.getNazev()}</li>`;
+        if (predmet instanceof Lektvar || predmet instanceof Jidlo) {
+            // Lektvary a jídlo označíme třídou 'klikaci-predmet', aby hráč věděl, že na ně může kliknout
+            uiSeznamInventar.innerHTML += `<li class="klikaci-predmet" title="Kliknutím spotřebuješ tento předmět">${predmet.getNazev()}</li>`;
+        } else if (predmet instanceof Vybaveni) {
+            // Vybavení je také klikatelné pro oblékání/svlékání
+            const jeVybaveno = (predmet === vybavenaZbran || predmet === vybavenyStit);
+            const tridaVybaveno = jeVybaveno ? "vybaveny-predmet" : "";
+            const textVybaveno = jeVybaveno ? " [Vybaveno]" : "";
+            
+            uiSeznamInventar.innerHTML += `<li class="klikaci-predmet ${tridaVybaveno}" title="Kliknutím oblíkneš/svlékneš toto vybavení">${predmet.getNazev()}${textVybaveno}</li>`;
         } else {
             // Ostatní předměty nejsou klikatelné
             uiSeznamInventar.innerHTML += `<li>${predmet.getNazev()}</li>`;
@@ -376,46 +456,63 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
             throw new Error("Neznámé povolání!");
         }
 
-        // 6. Aktualizace životů a speciálního zdroje v UI
+        // Resetujeme vybavené předměty na začátku nového dobrodružství
+        vybavenaZbran = null;
+        vybavenyStit = null;
+
+        // 6. Aktualizace stavu a statistik v UI
         aktualizujStavUI();
 
-        // Aktualizace jména, rasy, povolání a atributů (Síla, Obratnost, Inteligence)
-        if (uiJmeno && uiRasaPovolani && uiSila && uiObratnost && uiInteligence) {
+        // Aktualizace jména, rasy a povolání
+        if (uiJmeno && uiRasaPovolani) {
             uiJmeno.innerText = hrdina.getJmeno();
             uiRasaPovolani.innerText = `${zvolenaRasaNazev} | ${zvolenePovolani}`;
-            
-            // Atributy převedeme na text (string) pro vypsání do HTML
-            uiSila.innerText = hrdina.getSila().toString();
-            uiObratnost.innerText = hrdina.getObratnost().toString();
-            uiInteligence.innerText = hrdina.getInteligence().toString();
         }
 
-        // 7. Načtení předmětů z číselníku do globálního inventáře
+        // 7. Vytvoření startovního inventáře podle povolání
         inventar = [];
 
-        // Načtení lektvarů z databáze
-        for (const data of suroveLektvary) {
-            if (data.typ === "zdravi") {
-                inventar.push(new LektvarZdravi(data.nazev, data.hodnota));
-            } else if (data.typ === "mana") {
-                inventar.push(new LektvarMany(data.nazev, data.hodnota));
+        // Pomocná funkce pro vyhledání předmětu v databázích a jeho přidání do inventáře
+        const pridejPredmet = (hledanyNazev: string) => {
+            // Zkusíme najít lektvar
+            const lektvar = suroveLektvary.find(l => l.nazev === hledanyNazev);
+            if (lektvar) {
+                if (lektvar.typ === "zdravi") inventar.push(new LektvarZdravi(lektvar.nazev, lektvar.hodnota));
+                if (lektvar.typ === "mana") inventar.push(new LektvarMany(lektvar.nazev, lektvar.hodnota));
+                return; // Pokud jsme našli a přidali, rovnou funkci ukončíme
             }
-        }
 
-        // Načtení jídla z databáze
-        for (const data of suroveJidlo) {
-            inventar.push(new Jidlo(data.nazev, data.popis));
-        }
+            // Zkusíme najít jídlo
+            const jidlo = suroveJidlo.find(j => j.nazev === hledanyNazev);
+            if (jidlo) {
+                inventar.push(new Jidlo(jidlo.nazev, jidlo.popis, jidlo.leceni));
+                return;
+            }
 
-        // Načtení vybavení z databáze
-        for (const data of suroveVybaveni) {
-            inventar.push(new Vybaveni(
-                data.nazev,
-                data.modSila,
-                data.modRychlostUtoku,
-                data.modInteligence,
-                data.modObrana
-            ));
+            // Zkusíme najít vybavení
+            const vybaveni = suroveVybaveni.find(v => v.nazev === hledanyNazev);
+            if (vybaveni) {
+                inventar.push(new Vybaveni(
+                    vybaveni.nazev,
+                    vybaveni.typ, // Předáme typ (zbran / stit)
+                    vybaveni.modSila || 0,
+                    vybaveni.modRychlostUtoku || 0,
+                    vybaveni.modInteligence || 0,
+                    vybaveni.modObrana || 0,
+                    vybaveni.modObratnost || 0
+                ));
+            }
+        };
+
+        // Podle zvoleného povolání přidáme konkrétní startovní předměty
+        if (zvolenePovolani === "Bojovnik") {
+            pridejPredmet("Železný meč"); // Bojovník dostane jen meč
+        } else if (zvolenePovolani === "Mag") {
+            pridejPredmet("Dřevěná hůl");
+            pridejPredmet("Zářivý modrý lektvar"); // Malý mana lektvar v naší databázi
+        } else if (zvolenePovolani === "Zlodej") {
+            pridejPredmet("Rezavá dýka");
+            pridejPredmet("Malá léčivá lahvička");
         }
 
         // 8. Vykreslení inventáře do HTML rozhraní
@@ -484,6 +581,8 @@ if (btnTestDrain) {
                 hrdina.zmenManu(-10);
             } else if (hrdina instanceof Zlodej) {
                 hrdina.zmenFocus(-10);
+            } else if (hrdina instanceof Bojovnik) {
+                hrdina.zmenAdrenalin(-10); // Bojovník se "uklidní"
             }
             // Aktualizujeme stav v UI
             aktualizujStavUI();
@@ -492,28 +591,76 @@ if (btnTestDrain) {
 }
 
 // ==========================================
-// POUŽÍVÁNÍ PŘEDMĚTŮ (Klikání v inventáři)
+// POUŽÍVÁNÍ A VYBAVOVÁNÍ PŘEDMĚTŮ
 // ==========================================
 // Nastavení klikatelnosti pro předměty v inventáři (využívá delegování událostí na celém seznamu)
 if (uiSeznamInventar) {
     uiSeznamInventar.addEventListener("click", (e) => {
         const target = e.target as HTMLElement;
         
-        // Zkontrolujeme, zda kliknutí směřovalo na klikatelný předmět (lektvar)
+        // Zkontrolujeme, zda kliknutí směřovalo na spotřební nebo vybavitelný předmět
         if (target && target.classList.contains("klikaci-predmet")) {
-            // Získáme název předmětu z textu položky
-            const nazevLektvaru = target.innerText;
-            // Najdeme lektvar v našem inventáři podle názvu
-            const lektvar = inventar.find(p => p.getNazev() === nazevLektvaru);
+            let nazevPredmetu = target.innerText;
             
-            if (hrdina && lektvar instanceof Lektvar) {
-                // Hrdina lektvar vypije (polymorfní chování)
-                lektvar.pouzit(hrdina);
-                
-                // Odstraníme vypitý lektvar z batohu
-                const index = inventar.indexOf(lektvar);
-                if (index !== -1) {
-                    inventar.splice(index, 1);
+            // Pokud je předmět vybavený, odstraníme z názvu text " [Vybaveno]", abychom ho našli v databázi
+            if (nazevPredmetu.endsWith(" [Vybaveno]")) {
+                nazevPredmetu = nazevPredmetu.replace(" [Vybaveno]", "");
+            }
+            
+            // Najdeme předmět v našem inventáři podle názvu
+            const predmet = inventar.find(p => p.getNazev() === nazevPredmetu);
+            
+            if (hrdina && predmet) {
+                if (predmet instanceof Lektvar) {
+                    // Použijeme lektvar (polymorfní volání) a smažeme ho z inventáře
+                    predmet.pouzit(hrdina);
+                    const index = inventar.indexOf(predmet);
+                    if (index !== -1) inventar.splice(index, 1);
+                    
+                } else if (predmet instanceof Jidlo) {
+                    // Sníme jídlo a smažeme ho z inventáře
+                    predmet.snist(hrdina);
+                    const index = inventar.indexOf(predmet);
+                    if (index !== -1) inventar.splice(index, 1);
+                    
+                } else if (predmet instanceof Vybaveni) {
+                    // Vybavíme nebo svlékneme předmět
+                    if (predmet.getTyp() === "zbran") {
+                        if (vybavenaZbran === predmet) {
+                            // Kliknutím na již vybavenou zbraň ji svlékneme
+                            vybavenaZbran = null;
+                        } else {
+                            // Oblékneme novou zbraň (případná stará se nahradí)
+                            vybavenaZbran = predmet;
+                        }
+                    } else if (predmet.getTyp() === "stit") {
+                        // Zkontrolujeme, zda byl hrdina plně zdravý (před změnou štítu)
+                        const bylNaPlno = (hrdina.getHp() === hrdina.getMaxHp());
+
+                        if (vybavenyStit === predmet) {
+                            // Kliknutím na již vybavený štít ho svlékneme
+                            vybavenyStit = null;
+                        } else {
+                            // Oblékneme nový štít (případný starý se nahradí)
+                            vybavenyStit = predmet;
+                        }
+
+                        // Okamžitě aktualizujeme bonusové HP v samotné postavě
+                        const novyBonusHp = vybavenyStit ? vybavenyStit.getObranaBonus() : 0;
+                        hrdina.setBonusMaxHp(novyBonusHp);
+
+                        // Nové efektivní maximum HP po změně
+                        const noveMaxHp = hrdina.getMaxHp();
+
+                        if (bylNaPlno) {
+                            // Pokud byl hrdina předtím na plném zdraví, vyléčíme ho na nové maximum
+                            hrdina.zmenHp(noveMaxHp); 
+                        } else {
+                            // Pokud nebyl plný, jen zavoláme zmenHp s 0. To nijak nezmění HP, 
+                            // ale donutí postavu oříznout si životy, pokud po sundání štítu překračují nové maximum.
+                            hrdina.zmenHp(0);
+                        }
+                    }
                 }
                 
                 // Překreslíme statistiky hrdiny a aktualizujeme zobrazení batohu

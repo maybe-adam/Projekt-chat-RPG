@@ -1,0 +1,9 @@
+{
+    "compilerOptions": {
+        "target": "es6"
+    },
+    "files": [
+        "data.ts",
+        "script.ts"
+    ]
+}

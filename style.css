@@ -7,7 +7,7 @@
     --hp-color: #e53935;
     --mana-color: #1e88e5;
     --focus-color: #fdd835;
-    --obrana-color: #9e9e9e;
+    --adrenalin-color: #9e9e9e;
 }
 
 * {
@@ -230,7 +230,7 @@ button:hover {
     background-color: #ef6c00;
 }
 
-/* Klikatelné předměty v inventáři (lektvary) */
+/* Klikatelné předměty v inventáři (lektvary, jídlo, vybavení) */
 .klikaci-predmet {
     cursor: pointer;
     transition: background-color 0.2s, border-left 0.2s;
@@ -240,6 +240,16 @@ button:hover {
     background-color: #333;
     border-left: 4px solid var(--primary-color);
     padding-left: 11px; /* Kompenzace za 4px border + margin */
+}
+
+/* Vizuální zvýraznění pro aktuálně vybavenou zbraň nebo štít (změna celé barvy položky) */
+#ui-seznam-inventar li.vybaveny-predmet {
+    background-color: #2e7d32; /* Výraznější zelené pozadí */
+    color: #fff; /* Bílé písmo */
+}
+
+#ui-seznam-inventar li.vybaveny-predmet:hover {
+    background-color: #388e3c;
 }
 
 /* --- RESPONZIVITA (MOBILY) --- */
