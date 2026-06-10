@@ -43,18 +43,20 @@
         
         <div class="game-layout">
             
-            <!-- TESTOVACÍ PANEL: Levý sloupec s tlačítky -->
-            <div class="test-panel">
-                <h3>Testování</h3>
-                <button id="btn-test-damage" class="btn-test">Zranit -10 HP</button>
-                <button id="btn-test-drain" class="btn-test">Vybít -10 Energii</button>
+            <!-- JAZYK: Levý sloupec s tlačítky -->
+            <div id="panel-jazyk" class="test-panel">
+                <h3>Jazyk (Language)</h3>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="btn-lang-cz" class="btn-test" style="flex: 1; background: #6610f2;">CZ</button>
+                    <button id="btn-lang-en" class="btn-test" style="flex: 1;">EN</button>
+                </div>
             </div>
             
             <!-- LEVÁ POLOVINA: Chat a příběh -->
             <div class="chat-section">
                 <div id="chat-log" class="chat-log">
                     <!-- Sem bude JavaScript přidávat zprávy z příběhu -->
-                    <p>Vítej ve světě, hrdino. Tvé dobrodružství právě začíná...</p>
+                    <p>Vítej ve světě, hrdino. Napiš "start" do chatu, pro započetí tvého dobrodružství...</p>
                 </div>
                 
                 <div class="chat-controls">

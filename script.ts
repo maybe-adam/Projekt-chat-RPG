@@ -267,6 +267,16 @@ class Vybaveni extends Predmet {
     public getObratnostBonus(): number { return this.obratnostBonus; }
 }
 
+// ==========================================
+// KATEGORIE: OSTATNÍ PŘEDMĚTY (Příběhové, klíče atd.)
+// ==========================================
+// Tyto předměty nemají žádné speciální staty, jde o věci generované AI (klíče, prsteny, knihy)
+class OstatniPredmet extends Predmet {
+    constructor(nazev: string) {
+        super(nazev);
+    }
+}
+
 const tlacitkoZacit = document.getElementById("btn-zacit");
 const obrazovkaTvorba = document.getElementById("screen-tvorba");
 const obrazovkaHra = document.getElementById("screen-hra");
@@ -292,6 +302,55 @@ const uiSila = document.getElementById("ui-sila");
 const uiObratnost = document.getElementById("ui-obratnost");
 const uiInteligence = document.getElementById("ui-inteligence");
 
+// Získáme prvky pro Chat a komunikaci s AI
+const inputChat = document.getElementById("input-chat") as HTMLInputElement;
+const btnOdeslat = document.getElementById("btn-odeslat");
+const chatLog = document.getElementById("chat-log");
+
+// Groq API klíče a historie konverzace
+const GROQ_API_KEYS = [
+    "YOUR_GROQ_API_KEY_1",
+    "YOUR_GROQ_API_KEY_2"
+];
+let currentGroqKeyIndex = 0;
+
+// Pomocná funkce pro volání API s automatickým přepínáním klíčů při dosažení limitu (429)
+async function groqFetch(bodyData: any) {
+    let response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${GROQ_API_KEYS[currentGroqKeyIndex]}`
+        },
+        body: JSON.stringify(bodyData)
+    });
+
+    if (response.status === 429) {
+        console.warn("Dosažen Rate Limit, přepínám na záložní API klíč...");
+        currentGroqKeyIndex = (currentGroqKeyIndex + 1) % GROQ_API_KEYS.length;
+        response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${GROQ_API_KEYS[currentGroqKeyIndex]}`
+            },
+            body: JSON.stringify(bodyData)
+        });
+    }
+
+    return response;
+}
+const historieZprav: { role: string; content: string }[] = [
+    {
+        role: "system",
+        content: `Jsi profesionální Pán jeskyně (Dungeon Master) v temném fantasy RPG. 
+Tvým jediným úkolem je vyprávět strhující, atmosférický a dramatický příběh na základě akcí hráče. 
+NIKDY nevypadávej z role a vždy piš v češtině. 
+Buď úderný a stručný, tvé odpovědi by měly mít maximálně 2-4 věty. Nechávej hráči prostor reagovat.
+POKUD hráč napíše slovo "start", okamžitě vymysli epický a nečekaný začátek nového dobrodružství a vrhni hráče rovnou do akce!`
+    }
+];
+
 // Získáme prvky pro přepínání záložek (tlačítek) a jejich panelů
 const tabPostava = document.getElementById("tab-postava");
 const tabInventar = document.getElementById("tab-inventar");
@@ -301,9 +360,9 @@ const panelInventar = document.getElementById("panel-inventar");
 // Získáme prvek pro seznam předmětů v inventáři
 const uiSeznamInventar = document.getElementById("ui-seznam-inventar");
 
-// Získáme prvky pro testovací tlačítka
-const btnTestDamage = document.getElementById("btn-test-damage");
-const btnTestDrain = document.getElementById("btn-test-drain");
+// Získáme prvky pro tlačítka volby jazyka
+const btnLangCz = document.getElementById("btn-lang-cz");
+const btnLangEn = document.getElementById("btn-lang-en");
 
 // Proměnná pro hrdinu je připravená nahoře, naplníme ji až po kliknutí
 let hrdina: Postava;
@@ -314,6 +373,16 @@ let inventar: Predmet[] = [];
 // Globální proměnné pro aktuálně vybavenou zbraň a štít
 let vybavenaZbran: Vybaveni | null = null;
 let vybavenyStit: Vybaveni | null = null;
+
+// Globální proměnné pro aktuálně zvolenou rasu a povolání
+let zvolenaRasaNazev: string = "";
+let zvolenePovolani: string = "";
+
+// Globální proměnná pro "dlouhodobou paměť" (shrnutí děje od AI na pozadí)
+let shrnutyPribeh: string = "";
+
+// Počítadlo tahů bez zranění pro Bojovníka (pokud dosáhne 3, adrenalin spadne na 0)
+let tahyBezZraneni: number = 0;
 
 // Pomocná funkce pro aktualizaci životů (HP), speciálního zdroje (Mana/Focus/Adrenalin) a statistik v UI
 function aktualizujStavUI(): void {
@@ -379,6 +448,73 @@ function aktualizujStavUI(): void {
     }
 }
 
+// Pomocná funkce pro vyhledání předmětu v databázích a jeho přidání do inventáře
+function pridejPredmet(hledanyNazev: string) {
+    // Pokud AI poslalo předmět s rourou (tvorba dynamického předmětu s vlastnostmi)
+    if (hledanyNazev.includes("|")) {
+        const parts = hledanyNazev.split("|");
+        const itemName = parts[0].trim();
+        const type = parts[1] ? parts[1].trim().toLowerCase() : "";
+        
+        if (type === "potion" && parts.length >= 4) {
+            const pType = parts[2].trim().toLowerCase();
+            const pVal = parseInt(parts[3]) || 0;
+            if (pType === "zdravi") inventar.push(new LektvarZdravi(itemName, pVal));
+            else inventar.push(new LektvarMany(itemName, pVal));
+            return;
+        } else if (type === "food" && parts.length >= 4) {
+            const fDesc = parts[2].trim();
+            const fVal = parseInt(parts[3]) || 0;
+            inventar.push(new Jidlo(itemName, fDesc, fVal));
+            return;
+        } else if (type === "equip" && parts.length >= 8) {
+            const eType = parts[2].trim() as "zbran" | "stit";
+            const modStr = parseInt(parts[3]) || 0;
+            const modSpd = parseInt(parts[4]) || 0;
+            const modInt = parseInt(parts[5]) || 0;
+            const modDef = parseInt(parts[6]) || 0;
+            const modAgi = parseInt(parts[7]) || 0;
+            inventar.push(new Vybaveni(itemName, eType, modStr, modSpd, modInt, modDef, modAgi));
+            return;
+        }
+        // Pokud formát neseděl, použijeme pouze název a zkusíme to přidat normálně
+        hledanyNazev = itemName;
+    }
+
+    // Zkusíme najít lektvar v databázi
+    const lektvar = suroveLektvary.find((l: any) => l.nazev === hledanyNazev);
+    if (lektvar) {
+        if (lektvar.typ === "zdravi") inventar.push(new LektvarZdravi(lektvar.nazev, lektvar.hodnota));
+        if (lektvar.typ === "mana") inventar.push(new LektvarMany(lektvar.nazev, lektvar.hodnota));
+        return; 
+    }
+
+    // Zkusíme najít jídlo v databázi
+    const jidlo = suroveJidlo.find((j: any) => j.nazev === hledanyNazev);
+    if (jidlo) {
+        inventar.push(new Jidlo(jidlo.nazev, jidlo.popis, jidlo.leceni));
+        return;
+    }
+
+    // Zkusíme najít vybavení v databázi
+    const vybaveni = suroveVybaveni.find((v: any) => v.nazev === hledanyNazev);
+    if (vybaveni) {
+        inventar.push(new Vybaveni(
+            vybaveni.nazev,
+            vybaveni.typ, 
+            vybaveni.modSila || 0,
+            vybaveni.modRychlostUtoku || 0,
+            vybaveni.modInteligence || 0,
+            vybaveni.modObrana || 0,
+            vybaveni.modObratnost || 0
+        ));
+        return;
+    }
+
+    // Pokud předmět není v žádné databázi (např. AI si vymyslela Zlatý prsten nebo Klíč)
+    inventar.push(new OstatniPredmet(hledanyNazev));
+}
+
 // Pomocná funkce pro vykreslení inventáře do HTML rozhraní (používá innerHTML a jednodušší syntaxi)
 function vykresliInventar(): void {
     if (!uiSeznamInventar) return;
@@ -410,8 +546,8 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
     tlacitkoZacit.addEventListener("click", () => {
         // 1. Přečteme aktuální hodnoty z formuláře
         const zvoleneJmeno = inputJmeno.value;
-        const zvolenaRasaNazev = selectRasa.value;
-        const zvolenePovolani = selectPovolani.value;
+        zvolenaRasaNazev = selectRasa.value;
+        zvolenePovolani = selectPovolani.value;
 
         // Kontrola: Zda uživatel zadal jméno, jinak ho nepustíme dál
         if (zvoleneJmeno.trim() === "") {
@@ -470,39 +606,8 @@ if (tlacitkoZacit && obrazovkaTvorba && obrazovkaHra && inputJmeno && selectRasa
         }
 
         // 7. Vytvoření startovního inventáře podle povolání
+        // Inventář začíná prázdný
         inventar = [];
-
-        // Pomocná funkce pro vyhledání předmětu v databázích a jeho přidání do inventáře
-        const pridejPredmet = (hledanyNazev: string) => {
-            // Zkusíme najít lektvar
-            const lektvar = suroveLektvary.find(l => l.nazev === hledanyNazev);
-            if (lektvar) {
-                if (lektvar.typ === "zdravi") inventar.push(new LektvarZdravi(lektvar.nazev, lektvar.hodnota));
-                if (lektvar.typ === "mana") inventar.push(new LektvarMany(lektvar.nazev, lektvar.hodnota));
-                return; // Pokud jsme našli a přidali, rovnou funkci ukončíme
-            }
-
-            // Zkusíme najít jídlo
-            const jidlo = suroveJidlo.find(j => j.nazev === hledanyNazev);
-            if (jidlo) {
-                inventar.push(new Jidlo(jidlo.nazev, jidlo.popis, jidlo.leceni));
-                return;
-            }
-
-            // Zkusíme najít vybavení
-            const vybaveni = suroveVybaveni.find(v => v.nazev === hledanyNazev);
-            if (vybaveni) {
-                inventar.push(new Vybaveni(
-                    vybaveni.nazev,
-                    vybaveni.typ, // Předáme typ (zbran / stit)
-                    vybaveni.modSila || 0,
-                    vybaveni.modRychlostUtoku || 0,
-                    vybaveni.modInteligence || 0,
-                    vybaveni.modObrana || 0,
-                    vybaveni.modObratnost || 0
-                ));
-            }
-        };
 
         // Podle zvoleného povolání přidáme konkrétní startovní předměty
         if (zvolenePovolani === "Bojovnik") {
@@ -559,33 +664,45 @@ if (tabPostava && tabInventar && panelPostava && panelInventar) {
 }
 
 // ==========================================
-// TLAČÍTKA PRO TESTOVÁNÍ (Zranění a Vybití)
+// PŘEPÍNÁNÍ JAZYKA (CZ / EN)
 // ==========================================
-// Přidáme posluchače událostí pro testovací tlačítka v levém panelu
-if (btnTestDamage) {
-    btnTestDamage.addEventListener("click", () => {
-        if (hrdina) {
-            // Zraníme hrdinu o 10 HP
-            hrdina.zranit(10);
-            // Aktualizujeme stav v UI
-            aktualizujStavUI();
+// Tlačítka změní barvu (pro indikaci výběru) a okamžitě přepíší hlavní pravidlo AI v historii
+if (btnLangCz && btnLangEn) {
+    btnLangCz.addEventListener("click", () => {
+        // UI indikace
+        btnLangCz.style.background = "#6610f2";
+        btnLangEn.style.background = "#444";
+        
+        // Přepíšeme první zprávu v paměti (kde sídlí hlavní pravidla) zpět do češtiny
+        historieZprav[0].content = `Jsi profesionální Pán jeskyně (Dungeon Master) v temném fantasy RPG. 
+Tvým jediným úkolem je vyprávět strhující, atmosférický a dramatický příběh na základě akcí hráče. 
+NIKDY nevypadávej z role a vždy piš v češtině. 
+Buď úderný a stručný, tvé odpovědi by měly mít maximálně 2-4 věty. Nechávej hráči prostor reagovat.
+POKUD hráč napíše slovo "start", okamžitě vymysli epický a nečekaný začátek nového dobrodružství a vrhni hráče rovnou do akce!`;
+        
+        // Přidáme upozornění do chatu pro hráče
+        if (chatLog) {
+            chatLog.innerHTML += `<p style="color: #6610f2; font-size: 0.9em; text-align: center;"><em>Pán jeskyně nyní mluví Česky.</em></p>`;
+            chatLog.scrollTop = chatLog.scrollHeight;
         }
     });
-}
 
-if (btnTestDrain) {
-    btnTestDrain.addEventListener("click", () => {
-        if (hrdina) {
-            // Odebereme 10 many nebo focusu podle povolání hrdiny
-            if (hrdina instanceof Mag) {
-                hrdina.zmenManu(-10);
-            } else if (hrdina instanceof Zlodej) {
-                hrdina.zmenFocus(-10);
-            } else if (hrdina instanceof Bojovnik) {
-                hrdina.zmenAdrenalin(-10); // Bojovník se "uklidní"
-            }
-            // Aktualizujeme stav v UI
-            aktualizujStavUI();
+    btnLangEn.addEventListener("click", () => {
+        // UI indikace
+        btnLangEn.style.background = "#6610f2";
+        btnLangCz.style.background = "#444";
+        
+        // Přepíšeme první zprávu v paměti (kde sídlí hlavní pravidla) do angličtiny
+        historieZprav[0].content = `You are a professional Dungeon Master in a dark fantasy RPG. 
+Your only task is to tell a gripping, atmospheric, and dramatic story based on the player's actions. 
+NEVER break character and always write in English. 
+Be punchy and brief, your responses should be a maximum of 2-4 sentences. Leave room for the player to react.
+IF the player types the word "start", immediately invent an epic and unexpected beginning to a new adventure and throw the player straight into the action!`;
+        
+        // Přidáme upozornění do chatu pro hráče
+        if (chatLog) {
+            chatLog.innerHTML += `<p style="color: #6610f2; font-size: 0.9em; text-align: center;"><em>The Dungeon Master now speaks English.</em></p>`;
+            chatLog.scrollTop = chatLog.scrollHeight;
         }
     });
 }
@@ -667,6 +784,300 @@ if (uiSeznamInventar) {
                 aktualizujStavUI();
                 vykresliInventar();
             }
+        }
+    });
+}
+
+// ==========================================
+// CHAT A KOMUNIKACE S AI (Groq API)
+// ==========================================
+// Nastavíme posluchače na odeslání zprávy z chatu
+if (btnOdeslat && inputChat && chatLog) {
+    btnOdeslat.addEventListener("click", async () => {
+        const zpravaHraci = inputChat.value.trim();
+        if (zpravaHraci === "") return;
+
+        // 1. Vykreslení zprávy hráče do chatu
+        chatLog.innerHTML += `<p><strong>Ty:</strong> ${zpravaHraci}</p>`;
+        inputChat.value = ""; // Vymazání políčka po odeslání
+        chatLog.scrollTop = chatLog.scrollHeight; // Posuneme chat dolů
+
+        // Skrytí výběru jazyka, jakmile hra začne
+        if (zpravaHraci.toLowerCase() === "start") {
+            const panelJazyk = document.getElementById("panel-jazyk");
+            if (panelJazyk) {
+                panelJazyk.style.display = "none";
+            }
+        }
+
+        // 2. Přidání zprávy do paměti (historie), aby AI věděla, o čem se bavíme
+        historieZprav.push({ role: "user", content: zpravaHraci });
+
+        // 3. Vytvoříme dočasný text "přemýšlí", než dorazí odpověď od Groq
+        const aiZpravaID = `ai-zprava-${Date.now()}`;
+        chatLog.innerHTML += `<p id="${aiZpravaID}" style="color: #888;"><strong>Pán jeskyně:</strong> <em>(Přemýšlí...)</em></p>`;
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        // 4. Sestavení aktuálního stavu hrdiny pro AI
+        let stavHrdinyText = "Stav hrdiny není k dispozici.";
+        if (hrdina) {
+            // Zjištění celkových statů vč. bonusů z vybavení
+            let bonusSila = 0, bonusInt = 0, bonusObr = 0;
+            if (vybavenaZbran) {
+                bonusSila += vybavenaZbran.getSilaBonus();
+                bonusInt += vybavenaZbran.getInteligenceBonus();
+                bonusObr += vybavenaZbran.getObratnostBonus();
+            }
+            if (vybavenyStit) {
+                bonusSila += vybavenyStit.getSilaBonus();
+                bonusInt += vybavenyStit.getInteligenceBonus();
+                bonusObr += vybavenyStit.getObratnostBonus();
+            }
+
+            // Speciální zdroj podle povolání
+            let zdrojText = "";
+            if (hrdina instanceof Mag) zdrojText = `Mana: ${hrdina.getMana()}/100`;
+            else if (hrdina instanceof Zlodej) zdrojText = `Focus: ${hrdina.getFocus()}/100`;
+            else if (hrdina instanceof Bojovnik) zdrojText = `Adrenalin (redukce zranění): ${hrdina.getRedukcePoskozeni()}%`;
+
+            let pravidloZdroj = "";
+            if (hrdina instanceof Mag) pravidloZdroj = "PRAVIDLO PRO MANU: Jsi Mág. Tvá Mana se spotřebovává POUZE při sesílání magických kouzel. Fyzické akce manu nestojí!";
+            else if (hrdina instanceof Zlodej) pravidloZdroj = "PRAVIDLO PRO FOCUS: Jsi Zloděj. Tvůj Focus se spotřebovává POUZE při náročných, přesných nebo rychlých akcích (kradení, uhýbání, akrobacie).";
+            else if (hrdina instanceof Bojovnik) pravidloZdroj = "PRAVIDLO PRO ADRENALIN: Jsi Bojovník. Tvůj Adrenalin stoupá POUZE v boji, když dostaneš zásah od nepřítele.";
+
+            stavHrdinyText = `--- AKTÁLNÍ STAV HRDINY ---
+Jméno: ${hrdina.getJmeno()}
+Povolání a Rasa: ${zvolenePovolani} (${zvolenaRasaNazev})
+Životy (HP): ${hrdina.getHp()} / ${hrdina.getMaxHp()}
+${zdrojText}
+Síla: ${hrdina.getSila() + bonusSila} | Obratnost: ${hrdina.getObratnost() + bonusObr} | Inteligence: ${hrdina.getInteligence() + bonusInt}
+Vybavená zbraň: ${vybavenaZbran ? vybavenaZbran.getNazev() : "Nic"}
+Vybavený štít: ${vybavenyStit ? vybavenyStit.getNazev() : "Nic"}
+Inventář (v batohu): ${inventar.map(p => p.getNazev()).join(", ") || "Prázdný"}
+${pravidloZdroj}
+---------------------------`;
+        }
+
+        // 4.5. Zkontrolujeme délku historie a případně vytvoříme shrnutí (Dlouhodobou paměť) na pozadí
+        // První zpráva je system, takže limit 15 zpráv znamená 1 system + 14 chat zpráv
+        if (historieZprav.length >= 15) {
+            try {
+                const zpravaProShrnuti = [
+                    {
+                        role: "system",
+                        content: `You are a background AI archivist for a text RPG. Your task is to compress the chat history into a highly dense, factual summary. 
+Read the conversation and output ONLY a single comprehensive paragraph that summarizes:
+1. What happened in the story so far.
+2. The current physical location of the hero.
+3. Every character, NPC, or enemy currently present, including their current status (e.g. alive, wounded, dead).
+4. The immediate goal of the hero.
+
+Output the summary in English. DO NOT write any pleasantries, conversational text, or formatting. ONLY the factual summary.`
+                    },
+                    ...historieZprav.slice(1) // Předáme dosavadní chat bez hlavního system promptu
+                ];
+
+                const summaryResponse = await groqFetch({
+                    model: "llama-3.1-8b-instant", // Rychlý malý model pro shrnutí (Dlouhodobá paměť)
+                    messages: zpravaProShrnuti,
+                    temperature: 0.3
+                });
+
+                if (summaryResponse.ok) {
+                    const summaryData = await summaryResponse.json();
+                    shrnutyPribeh = summaryData.choices[0].message.content;
+                    
+                    // Promažeme starou historii:
+                    // Smažeme vše kromě indexu 0 (system prompt) a posledních 4 zpráv
+                    historieZprav.splice(1, historieZprav.length - 5);
+                }
+            } catch (error) {
+                console.error("Chyba při generování shrnutí:", error);
+                // Pokud shrnutí selže, pokračujeme normálně dál, hra nespadne
+            }
+        }
+
+        // Přidáme aktuální stav jako skrytou systémovou zprávu nakonec pole před odesláním
+        let systemZpravaKodeslani = `(SYSTÉMOVÁ ZPRÁVA, NEODPOVÍDEJ NA NI PŘÍMO): Toto je aktuální stav hrdiny v tento moment. Vezmi to v potaz při vyhodnocování jeho akce a určování následků:\n${stavHrdinyText}`;
+        
+        // Pokud už máme nějaké shrnutí děje (dlouhodobou paměť), přidáme ji na začátek stavu
+        if (shrnutyPribeh !== "") {
+            systemZpravaKodeslani = `PŘEDCHOZÍ DĚJ (The story so far - read carefully to keep context):\n${shrnutyPribeh}\n\n` + systemZpravaKodeslani;
+        }
+
+        // Abychom zabránili AI přejít zpět do češtiny, pokud hráč zvolil EN (protože stav hrdiny je v češtině)
+        const aiMluviAnglicky = historieZprav[0].content.includes("English");
+        const jazykoveUpozorneni = aiMluviAnglicky ? 
+            "CRITICAL INSTRUCTION: YOU MUST RESPOND EXCLUSIVELY IN ENGLISH, NO MATTER WHAT THE TEXT ABOVE SAYS!" : 
+            "KRITICKÁ INSTRUKCE: MUSÍŠ ODPOVĚDĚT VÝHRADNĚ V ČEŠTINĚ, BEZ OHLEDU NA TO, ZDA JE PŘEDCHOZÍ DĚJ V ANGLIČTINĚ!";
+        
+        systemZpravaKodeslani += `\n\n${jazykoveUpozorneni}`;
+
+        const zpravyKodeslani = [
+            ...historieZprav, 
+            { 
+                role: "system", 
+                content: systemZpravaKodeslani
+            }
+        ];
+
+        try {
+            // 5. Pošleme požadavek přímo na servery Groq s vloženým stavem hrdiny
+            const response = await groqFetch({
+                model: "llama-3.3-70b-versatile", // Velký a chytrý hlavní model pro vyprávění příběhu
+                messages: zpravyKodeslani,
+                temperature: 0.7
+            });
+
+            if (!response.ok) {
+                throw new Error(`API vrátilo chybu: ${response.status}`);
+            }
+
+            const data = await response.json();
+            let aiOdpoved = data.choices[0].message.content;
+
+            // Preventivně vymažeme jakékoliv [CMD:] tagy, kdyby je hlavní model přesto vygeneroval ze setrvačnosti
+            aiOdpoved = aiOdpoved.replace(/\[CMD:\s*(.*?)\]/gi, "").trim();
+
+            // 5. Uložíme čistou odpověď do historie, aby se konverzace řetězila
+            historieZprav.push({ role: "assistant", content: aiOdpoved });
+
+            // 6. Nahradíme text "přemýšlí" skutečnou odpovědí v chatu (okamžité zobrazení!)
+            const pElement = document.getElementById(aiZpravaID);
+            if (pElement) {
+                pElement.innerHTML = `<strong>Pán jeskyně:</strong> ${aiOdpoved}`;
+                pElement.style.color = ""; // Vrátíme normální barvu
+            }
+            chatLog.scrollTop = chatLog.scrollHeight;
+
+            // ==========================================
+            // SEKUNDÁRNÍ MECHANICKÝ MODEL (Logika na pozadí)
+            // ==========================================
+            // Nyní se asynchronně zeptáme malého rychlého modelu, jestli došlo ke změně stavu.
+            // Model vůbec nemluví s hráčem, jen chrlí [CMD] tagy.
+            const mechPrompt = `You are a background game engine in a dark fantasy RPG. Your ONLY task is to read the player's action and the Dungeon Master's response, scan them for mechanical events, and output a strict command block to update the game state.
+
+Player action: "${zpravaHraci}"
+Dungeon Master response: "${aiOdpoved}"
+
+${stavHrdinyText}
+
+RULES FOR COMMANDS:
+1. Did the player take damage or heal? Use "hp" (e.g. hp=-15 or hp=20).
+2. Did the player use a special resource (mana for spells, focus for stealth, adrenalin)? Use "resource" (e.g. resource=-25). 
+3. Did the player find, buy, or receive a BRAND NEW item in THIS turn? Use "item". 
+   CRITICAL: DO NOT give the player items they already have in their inventory or equipped! Only output new items.
+   You MUST define its stats using pipes (|):
+   - Potion: item=Name|potion|zdravi or mana|value (e.g. item=Health Potion|potion|zdravi|50)
+   - Food: item=Name|food|description|value (e.g. item=Apple|food|tasty|5)
+   - Equipment: item=Name|equip|zbran or stit|strength|agility|intelligence|defense (e.g. item=Iron Sword|equip|zbran|3|0|0|0)
+   - Story item: item=Name (e.g. item=Rusty Key)
+4. Combine multiple commands using semicolons: [CMD: hp=-10; resource=-20; item=Health Potion|potion|zdravi|50]
+5. If NOTHING mechanical happened, you MUST output exactly: [CMD: none]
+
+CRITICAL INSTRUCTION: Output ONLY the [CMD: ...] block and absolutely NO OTHER TEXT. Never explain yourself.`;
+
+            try {
+                const mechResponse = await groqFetch({
+                    model: "llama-3.1-8b-instant", // Rychlý malý model pro mechaniky na pozadí
+                    messages: [{ role: "system", content: mechPrompt }],
+                    temperature: 0.1
+                });
+
+                if (mechResponse.ok) {
+                    const mechData = await mechResponse.json();
+                    const mechCmd = mechData.choices[0].message.content;
+                    
+                    const cmdRegex = /\[CMD:\s*(.*?)\]/i;
+                    const match = mechCmd.match(cmdRegex);
+                    
+                    let dostalZasah = false;
+
+                    if (match && hrdina) {
+                        const commandString = match[1]; 
+                        if (commandString.toLowerCase() !== "none") {
+                            const commands = commandString.split(";");
+                            for (let cmd of commands) {
+                                cmd = cmd.trim();
+                                if (cmd.toLowerCase().startsWith("hp=")) {
+                                    const hpValText = cmd.substring(3).trim();
+                                    const hpVal = parseInt(hpValText);
+                                    if (!isNaN(hpVal)) {
+                                        if (hpVal < 0) {
+                                            hrdina.zranit(Math.abs(hpVal));
+                                            dostalZasah = true;
+                                        } else {
+                                            hrdina.zmenHp(hpVal);
+                                        }
+                                    }
+                                } else if (cmd.toLowerCase().startsWith("item=")) {
+                                    const itemVal = cmd.substring(5).trim();
+                                    if (itemVal) {
+                                        const rozdelenePredmety = itemVal.split(/,| a | and /i);
+                                        for (let p of rozdelenePredmety) {
+                                            p = p.trim();
+                                            if (p) {
+                                                pridejPredmet(p);
+                                            }
+                                        }
+                                    }
+                                } else if (cmd.toLowerCase().startsWith("resource=")) {
+                                    const resValText = cmd.substring(9).trim();
+                                    const resVal = parseInt(resValText);
+                                    if (!isNaN(resVal)) {
+                                        if (hrdina instanceof Mag) hrdina.zmenManu(resVal);
+                                        else if (hrdina instanceof Zlodej) hrdina.zmenFocus(resVal);
+                                        else if (hrdina instanceof Bojovnik) hrdina.zmenAdrenalin(resVal);
+                                    }
+                                }
+                            }
+                            aktualizujStavUI();
+                            vykresliInventar();
+                        }
+                    }
+
+                    // --- AUTOMATICKÝ ÚBYTEK ADRENALINU ---
+                    if (hrdina && hrdina instanceof Bojovnik) {
+                        if (dostalZasah) {
+                            tahyBezZraneni = 0;
+                        } else {
+                            tahyBezZraneni++;
+                            if (tahyBezZraneni >= 3) {
+                                hrdina.zmenAdrenalin(-100); 
+                                tahyBezZraneni = 0;
+                                aktualizujStavUI();
+                            }
+                        }
+                    }
+
+                    // --- DETEKCE SMRTI ---
+                    if (hrdina && hrdina.getHp() <= 0) {
+                        inputChat.disabled = true;
+                        btnOdeslat.setAttribute("disabled", "true");
+                        inputChat.placeholder = "Tvůj hrdina padl. Dobrodružství skončilo.";
+                        chatLog.innerHTML += `<p style="color: #ff4444; text-align: center; font-size: 1.2em; margin-top: 15px;"><strong>☠️ KONEC HRY – Tvůj hrdina zemřel. ☠️</strong></p>`;
+                        chatLog.scrollTop = chatLog.scrollHeight;
+                    }
+                }
+            } catch (e) {
+                console.error("Chyba sekundárního mechanického modelu:", e);
+            }
+
+        } catch (error: any) {
+            console.error("Chyba při komunikaci s AI:", error);
+            const pElement = document.getElementById(aiZpravaID);
+            if (pElement) {
+                pElement.innerHTML = `<strong style="color: red;">Systém:</strong> <em>Něco se pokazilo (${error.message || error}). Zkus to za chvíli.</em>`;
+            }
+        }
+        
+        chatLog.scrollTop = chatLog.scrollHeight;
+    });
+
+    // Abychom mohli odesílat zprávy i stisknutím klávesy Enter
+    inputChat.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+            btnOdeslat.click();
         }
     });
 }
