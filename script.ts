@@ -308,10 +308,12 @@ const btnOdeslat = document.getElementById("btn-odeslat");
 const chatLog = document.getElementById("chat-log");
 
 // Groq API klíče a historie konverzace
-const GROQ_API_KEYS = [
-    "YOUR_GROQ_API_KEY_1",
-    "YOUR_GROQ_API_KEY_2"
-];
+interface Window {
+    ENV?: {
+        GROQ_API_KEYS: string[];
+    }
+}
+const GROQ_API_KEYS = window.ENV?.GROQ_API_KEYS || [];
 let currentGroqKeyIndex = 0;
 
 // Pomocná funkce pro volání API s automatickým přepínáním klíčů při dosažení limitu (429)

@@ -1,6 +1,7 @@
 // ==========================================
 // VĚTEV POSTAV (Dědičnost a Zapouzdření)
 // ==========================================
+var _a;
 // Abstraktní bázová třída pro všechny entity ve hře
 class Postava {
     constructor(jmeno, rasa, maxHp, sila, obratnost, inteligence) {
@@ -242,11 +243,7 @@ const uiInteligence = document.getElementById("ui-inteligence");
 const inputChat = document.getElementById("input-chat");
 const btnOdeslat = document.getElementById("btn-odeslat");
 const chatLog = document.getElementById("chat-log");
-// Groq API klíče a historie konverzace
-const GROQ_API_KEYS = [
-    "YOUR_GROQ_API_KEY_1",
-    "YOUR_GROQ_API_KEY_2"
-];
+const GROQ_API_KEYS = ((_a = window.ENV) === null || _a === void 0 ? void 0 : _a.GROQ_API_KEYS) || [];
 let currentGroqKeyIndex = 0;
 // Pomocná funkce pro volání API s automatickým přepínáním klíčů při dosažení limitu (429)
 async function groqFetch(bodyData) {
