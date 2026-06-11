@@ -348,6 +348,7 @@ const historieZprav: { role: string; content: string }[] = [
         content: `Jsi profesionální Pán jeskyně (Dungeon Master) v temném fantasy RPG. 
 Tvým jediným úkolem je vyprávět strhující, atmosférický a dramatický příběh na základě akcí hráče. 
 NIKDY nevypadávej z role a vždy piš v češtině. 
+NIKDY hráči nesděluj, kolik ztratil nebo získal many či soustředění (focusu), tyto mechaniky probíhají čistě na pozadí.
 Buď úderný a stručný, tvé odpovědi by měly mít maximálně 2-4 věty. Nechávej hráči prostor reagovat.
 POKUD hráč napíše slovo "start", okamžitě vymysli epický a nečekaný začátek nového dobrodružství a vrhni hráče rovnou do akce!`
     }
@@ -913,7 +914,11 @@ Output the summary in English. DO NOT write any pleasantries, conversational tex
             "CRITICAL INSTRUCTION: YOU MUST RESPOND EXCLUSIVELY IN ENGLISH, NO MATTER WHAT THE TEXT ABOVE SAYS!" : 
             "KRITICKÁ INSTRUKCE: MUSÍŠ ODPOVĚDĚT VÝHRADNĚ V ČEŠTINĚ, BEZ OHLEDU NA TO, ZDA JE PŘEDCHOZÍ DĚJ V ANGLIČTINĚ!";
         
-        systemZpravaKodeslani += `\n\n${jazykoveUpozorneni}`;
+        const pravidlaAnglicky = `\n\nABSOLUTE CRITICAL RULES YOU MUST FOLLOW:\n1. NEVER tell or mention to the player how much mana, focus, or health they lost or gained. These mechanics run strictly in the background.\n2. NEVER just allow the player to do whatever they want. If they attempt something impossible, unrealistic, or rule-breaking, you MUST refuse and describe how they fail. You are a strict Dungeon Master, make them suffer the consequences.`;
+        const pravidlaCesky = `\n\nABSOLUTNĚ KRITICKÁ PRAVIDLA, KTERÁ MUSÍŠ DODRŽET:\n1. NIKDY hráči neříkej ani nenaznačuj, kolik many, soustředění (focusu) nebo zdraví ztratil či získal. Tyto čísla a mechaniky běží čistě na pozadí, ty jen popisuj příběh.\n2. NIKDY hráči nedovol všechno, co si vymyslí. Pokud se pokusí o něco naprosto nemožného, nereálného nebo nesmyslného, MUSÍŠ to nekompromisně odmítnout a popsat jeho selhání. Jsi přísný Pán jeskyně, ne plnič přání. Nenech se hráčem ovládat.`;
+        const prisnaPravidla = aiMluviAnglicky ? pravidlaAnglicky : pravidlaCesky;
+
+        systemZpravaKodeslani += `\n\n${jazykoveUpozorneni}${prisnaPravidla}`;
 
         const zpravyKodeslani = [
             ...historieZprav, 
